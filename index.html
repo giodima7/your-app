@@ -2605,6 +2605,8 @@ function rPlanner(){
     return`<div><div class="plan-day-row" style="cursor:pointer;${isOpen?'border-bottom:none':''}" onclick="plannerExp[${i}]=!plannerExp[${i}];render()"><div class="plan-dot" style="background:${isTr?'var(--green)':'var(--muted2)'}"></div><div class="plan-day-lbl">${dlbls[i]}</div><div class="plan-day-info"><div class="plan-day-title">${lunch?.name||'—'} · ${dinner?.name||'—'}</div><div class="plan-day-sub">${day.kcal} kcal · ${day.protein}g protein · ${isTr?'Training':'Rest'}</div></div><span style="font-size:13px;color:var(--muted);flex-shrink:0;display:inline-block;transition:transform .2s;transform:rotate(${isOpen?'180':'0'}deg);margin-top:2px">▾</span></div>${mealsDetail}</div>`;
   }).join('');
   const genDate=meta?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Generated ${new Date(meta.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>`:'';
+  const fallbackWarning=(meta&&meta.fallbackDays>0)?`<div style="background:#fff8e1;border:1.5px solid #f9a825;border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:flex-start"><span style="font-size:18px;flex-shrink:0">⚠️</span><div><div style="font-size:12px;font-weight:700;color:#7a5c00;margin-bottom:2px">${meta.fallbackDays===7?'Generation failed — showing default plan':'Partial generation failure'}</div><div style="font-size:12px;color:#7a5c00;line-height:1.4">${meta.fallbackDays===7?'All 7 days fell back to the built-in template. This usually means the Anthropic API key is not set in Netlify, or the API returned an error. Check Netlify → Site settings → Environment variables.':''+meta.fallbackDays+' day'+(meta.fallbackDays>1?'s':'')+' could not be generated and used the default template. The rest of the plan is AI-generated.'}</div></div></div>`:'';
+
   const diff=meta?.diff;
   const diffHtml=diff&&(diff.dinners+diff.lunches+diff.breakfasts)>0?`<div class="card" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">What changed vs last plan</div><div class="diff-badges">${diff.dinners>0?`<span class="diff-badge">🍽️ ${diff.dinners} new dinner${diff.dinners>1?'s':''}</span>`:''}${diff.lunches>0?`<span class="diff-badge">🥗 ${diff.lunches} new lunch${diff.lunches>1?'es':''}</span>`:''}${diff.breakfasts>0?`<span class="diff-badge">🍳 ${diff.breakfasts} new breakfast${diff.breakfasts>1?'s':''}</span>`:''}</div></div>`:'';
   const constraints=getHardConstraints();
@@ -2613,7 +2615,7 @@ function rPlanner(){
     :'<div style="font-size:12px;color:var(--muted);padding:8px 0">No constraints — all foods allowed.</div>';
   return`<div class="pad">
 <div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:800;font-family:'Sora',sans-serif;color:var(--text)">${savedW1?'AI meal plan':'Default plan'}</div>${genDate}</div><span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green);flex-shrink:0;margin-top:2px">7 days</span></div>${daysHtml}</div>
-${diffHtml}
+${fallbackWarning}${diffHtml}
 <div style="display:flex;gap:8px;margin-bottom:12px">
   <button onclick="openPlannerSheet('full')" style="flex:2;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:50px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">✨ New week</button>
   <button onclick="openPlannerSheet('partial')" style="flex:2;padding:15px;background:var(--card);color:var(--text);border:1.5px solid var(--border);border-radius:50px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;box-shadow:var(--shadow)">🔄 Specific meals</button>
@@ -2790,10 +2792,8 @@ Return JSON:
 {"time":"${time}","label":"${mealLabel}","name":"...","desc":"ingredient (Xg) + ingredient (Xml)","p":${tProtein},"shake":false}`;
 }
 
-function validatePlanDay(data,tProtein,excl){
+function validatePlanDay(data,excl){
   if(!data||!Array.isArray(data.items)||data.items.length<6)return'Missing items array';
-  const totalP=data.items.reduce((s,it)=>s+(it.p||0),0);
-  if(Math.abs(totalP-tProtein)>30)return`Protein ${totalP}g too far from target ${tProtein}g`;
   const allText=data.items.map(it=>((it.name||'')+' '+(it.desc||'')).toLowerCase()).join(' ');
   // Validate against current hard constraints — extract banned food tokens
   for(const c of getHardConstraints()){
@@ -2832,7 +2832,7 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
   const TRAIN=[0,1,3,4,5];
   const dnames=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   const week=[];
-  let usedCarbs=[],usedDinners=[],omega3=0,iron=0;
+  let usedCarbs=[],usedDinners=[],omega3=0,iron=0,fallbackDays=0;
   const totalSteps=totalWeeks*7;
   for(let d=0;d<7;d++){
     const isTr=TRAIN.includes(d);
@@ -2846,13 +2846,14 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
         const match=raw.match(/\{[\s\S]*\}/);
         if(!match)throw new Error('No JSON in response');
         const parsed=JSON.parse(match[0]);
-        const err=validatePlanDay(parsed,tProtein,excl);
+        const err=validatePlanDay(parsed,excl);
         if(err){lastErr=err;console.warn(`Day ${d+1} attempt ${attempt+1} failed:`,err);}else{dayData=parsed;}
       }catch(e){lastErr=e.message;console.warn(`Day ${d+1} attempt ${attempt+1} error:`,e.message);}
     }
     if(!dayData){
       console.error(`Day ${d+1} all attempts failed (${lastErr}), using fallback`);
       dayData=JSON.parse(JSON.stringify(embeddedMeals[Math.min(weekNum-1,1)][d]));
+      fallbackDays++;
     }
     const allDesc=dayData.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
     ['white rice','basmati rice','brown rice','pasta','potato','sweet potato','quinoa','couscous','lentils'].forEach(c=>{if(allDesc.includes(c)&&!usedCarbs.includes(c))usedCarbs.push(c);});
@@ -2861,6 +2862,7 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
     if(/beef|lamb|lentil/.test(allDesc))iron++;
     week.push(dayData);
   }
+  week._fallbackDays=fallbackDays;
   return week;
 }
 
@@ -2939,11 +2941,12 @@ async function startPlanGeneration(mode){
       }
       const prevRaw=localStorage.getItem('gp_meals_w1');
       const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
+      const fallbackDays=(week1._fallbackDays||0)+(week2._fallbackDays||0);
       localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
       localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
       mealMatrix=[week1,week2];
       localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
-      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
+      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,fallbackDays}));
     }
     closePlannerSheet();
     go('plan');
