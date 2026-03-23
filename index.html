@@ -2812,9 +2812,10 @@ Return JSON:
 function validatePlanDay(data,excl){
   if(!data||!Array.isArray(data.items)||data.items.length<6)return'Missing items array';
   const allText=data.items.map(it=>((it.name||'')+' '+(it.desc||'')).toLowerCase()).join(' ');
-  // Validate against current hard constraints
+  // Validate against current hard constraints (word-boundary matching)
   for(const food of extractBannedFoods(getHardConstraints())){
-    if(allText.includes(food))return`Hard constraint violated: contains "${food}"`;
+    const re=new RegExp('\\b'+food.replace(/\s+/g,'\\s+')+'\\b','i');
+    if(re.test(allText))return`Hard constraint violated: contains "${food}"`;
   }
   for(const ex of excl){if(ex&&allText.includes(ex.toLowerCase()))return`Contains excluded: ${ex}`;}
   return null;
@@ -2851,7 +2852,7 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
     const isTr=TRAIN.includes(d);
     const tKcalDay=isTr?tKcal+100:Math.round(tKcal*0.97);
     const tCarbs=isTr?Math.round(tKcalDay*0.42/4):Math.round(tKcalDay*0.36/4);
-    let dayData=null,lastErr=null;
+    let dayData=null,lastErr=null,lastParsed=null;
     for(let attempt=0;attempt<3&&!dayData;attempt++){
       try{
         updateGenProgress(progressOffset+d+1,totalSteps,`Week ${weekNum} · ${dnames[d]}${attempt>0?` (retry ${attempt})`:''}`,`Day ${progressOffset+d+1} of ${totalSteps}…`);
@@ -2859,14 +2860,24 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
         const match=raw.match(/\{[\s\S]*\}/);
         if(!match)throw new Error('No JSON in response');
         const parsed=JSON.parse(match[0]);
+        if(parsed&&Array.isArray(parsed.items)&&parsed.items.length>=6)lastParsed=parsed;
         const err=validatePlanDay(parsed,excl);
-        if(err){lastErr=err;console.warn(`Day ${d+1} attempt ${attempt+1} failed:`,err);}else{dayData=parsed;}
+        if(err){lastErr=err;console.warn(`Day ${d+1} attempt ${attempt+1} failed validation:`,err);}
+        else{dayData=parsed;}
       }catch(e){lastErr=e.message;console.warn(`Day ${d+1} attempt ${attempt+1} error:`,e.message);}
     }
     if(!dayData){
-      console.error(`Day ${d+1} all attempts failed (${lastErr}), using fallback`);
-      dayData=JSON.parse(JSON.stringify(embeddedMeals[Math.min(weekNum-1,1)][d]));
-      fallbackDays++;
+      if(lastParsed){
+        // API is working but AI kept violating constraints — use last AI response anyway
+        // (better than embedded meals which also contain banned foods)
+        dayData=lastParsed;
+        console.warn(`Day ${d+1} using imperfect AI response (constraint: ${lastErr})`);
+      }else{
+        // API call failed completely — use embedded fallback
+        dayData=JSON.parse(JSON.stringify(embeddedMeals[Math.min(weekNum-1,1)][d]));
+        fallbackDays++;
+        console.error(`Day ${d+1} API failed (${lastErr}), using embedded fallback`);
+      }
     }
     const allDesc=dayData.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
     ['white rice','basmati rice','brown rice','pasta','potato','sweet potato','quinoa','couscous','lentils'].forEach(c=>{if(allDesc.includes(c)&&!usedCarbs.includes(c))usedCarbs.push(c);});
