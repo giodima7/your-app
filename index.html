@@ -2707,16 +2707,36 @@ async function planCallClaude(prompt){
   return data.content[0].text.trim();
 }
 
+// Robustly extract individual banned food names from constraint strings.
+// Handles: "no tuna or salmon, no broccoli, cabbage, turkey"
+// → ["tuna","salmon","broccoli","cabbage","turkey"]
+function extractBannedFoods(constraints){
+  const banned=[];
+  for(const c of constraints){
+    if(!/\bno\b/i.test(c))continue;
+    const lower=c.toLowerCase();
+    // Split at ", no" to separate distinct "no X" clauses
+    const clauses=lower.split(/,\s*(?=no\s)/);
+    for(const clause of clauses){
+      if(!/\bno\b/.test(clause))continue;
+      // Strip the leading "no"
+      const afterNo=clause.replace(/.*\bno\s+/i,'').trim();
+      // Split remaining by comma or " or "/" and "
+      afterNo.split(/\s*,\s*|\s+or\s+|\s+and\s+/)
+        .map(s=>s.replace(/[—\-\(].*/g,'').replace(/[.;:!?]+$/g,'').trim())
+        .filter(s=>s.length>2)
+        .forEach(s=>banned.push(s));
+    }
+  }
+  return[...new Set(banned)];
+}
+
 function buildDayPrompt(d,isTr,tKcal,tProtein,tCarbs,usedCarbs,usedDinners,omega3,iron,excl,extraExcl,retryErr){
   const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][d];
   const o3Need=omega3<3&&(7-d)<=(3-omega3),feNeed=iron<3&&(7-d)<=(3-iron);
   const constraints=getHardConstraints();
   const hardRules=constraints.map(c=>`• ${c}`).join('\n');
-  // Extract all explicitly banned foods from hard constraints
-  const bannedFromConstraints=constraints.flatMap(c=>{
-    const ms=c.match(/no\s+([\w\s]+?)(?:,|\bor\b|$)/gi)||[];
-    return ms.map(m=>m.replace(/^no\s+/i,'').trim().toLowerCase()).filter(f=>f.length>2);
-  });
+  const bannedFromConstraints=extractBannedFoods(constraints);
   const allExcl=[...bannedFromConstraints,...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean);
   const exclStr=[...new Set(allExcl)].join(', ');
   // Don't suggest omega-3 fish that the user has banned
@@ -2767,10 +2787,7 @@ function buildSingleMealPrompt(mealLabel,dayIdx,isTr,tKcal,tProtein,excl,extraEx
   const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][dayIdx];
   const constraints=getHardConstraints();
   const hardRules=constraints.map(c=>`• ${c}`).join('\n');
-  const bannedFromConstraints=constraints.flatMap(c=>{
-    const ms=c.match(/no\s+([\w\s]+?)(?:,|\bor\b|$)/gi)||[];
-    return ms.map(m=>m.replace(/^no\s+/i,'').trim().toLowerCase()).filter(f=>f.length>2);
-  });
+  const bannedFromConstraints=extractBannedFoods(constraints);
   const allExcl=[...bannedFromConstraints,...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean);
   const exclStr=[...new Set(allExcl)].join(', ');
   const timeMap={Breakfast:'7:30',Lunch:'13:00',Dinner:'19:30'};
@@ -2795,13 +2812,9 @@ Return JSON:
 function validatePlanDay(data,excl){
   if(!data||!Array.isArray(data.items)||data.items.length<6)return'Missing items array';
   const allText=data.items.map(it=>((it.name||'')+' '+(it.desc||'')).toLowerCase()).join(' ');
-  // Validate against current hard constraints — extract banned food tokens
-  for(const c of getHardConstraints()){
-    const ms=c.match(/no\s+([\w\s]+?)(?:,|\bor\b|[.:]|$)/gi)||[];
-    for(const m of ms){
-      const food=m.replace(/^no\s+/i,'').trim().toLowerCase();
-      if(food.length>2&&allText.includes(food))return`Hard constraint violated: contains "${food}"`;
-    }
+  // Validate against current hard constraints
+  for(const food of extractBannedFoods(getHardConstraints())){
+    if(allText.includes(food))return`Hard constraint violated: contains "${food}"`;
   }
   for(const ex of excl){if(ex&&allText.includes(ex.toLowerCase()))return`Contains excluded: ${ex}`;}
   return null;
@@ -2941,7 +2954,7 @@ async function startPlanGeneration(mode){
       }
       const prevRaw=localStorage.getItem('gp_meals_w1');
       const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
-      const fallbackDays=(week1._fallbackDays||0)+(week2._fallbackDays||0);
+      const fallbackDays=(week1._fallbackDays||0)+(genWeeks===2?week2._fallbackDays||0:0);
       localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
       localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
       mealMatrix=[week1,week2];
