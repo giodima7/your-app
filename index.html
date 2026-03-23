@@ -2663,22 +2663,11 @@ function openPlannerSheet(mode){
 <div class="sec-head" style="padding:0 0 6px;font-size:10px">Weekly gain target</div>
 <div class="goal-pills" style="margin:0 0 16px">${gainPills}</div>
 ${partialSection}
-<div class="sec-head" style="padding:0 0 6px;font-size:10px">Exclude from last plan</div>
-${exclHtml}
-<div class="sec-head" style="padding:0 0 6px;font-size:10px">Additional one-off exclusions</div>
-<textarea id="plan-extra-excl" class="swap-textarea" style="min-height:56px;margin-bottom:16px" placeholder="e.g. no salmon this week, avoid beef…"></textarea>
+<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:16px;padding:10px 12px;background:var(--elevated);border-radius:10px">Meals are picked from a curated database and filtered by your hard constraints above. Add constraints to exclude specific foods permanently.</div>
 ${scopeSection}
 <button id="plan-gen-btn" onclick="startPlanGeneration('${mode}')" class="swap-go-btn">
-  <span id="plan-gen-text">${mode==='full'?'✨ Generate':'🔄 Regenerate'}</span>
-  <span id="plan-gen-spin" style="display:none" class="spinner"></span>
-</button>
-<div id="plan-gen-progress" style="display:none">
-  <div class="gen-box">
-    <div style="font-size:12px;font-weight:700;color:var(--text)" id="gen-prog-label">Starting…</div>
-    <div class="gen-bar"><div class="gen-bar-fill" id="gen-bar-fill" style="width:0%"></div></div>
-    <div style="font-size:11px;color:var(--muted)" id="gen-prog-status"></div>
-  </div>
-</div>`;
+  ${mode==='full'?'✨ Generate new week':'🔄 Regenerate selected meals'}
+</button>`;
   window._planWeeks=1;
   document.getElementById('planner-modal').classList.add('show');
 }
@@ -2709,7 +2698,147 @@ async function planCallClaude(prompt,systemMsg){
   return data.content[0].text.trim();
 }
 
-// Safe substitutes for banned ingredients (no extra API calls needed)
+// ── MEAL DATABASE ─────────────────────────────────────────────────────────────
+// Curated meals — AI is only used for individual swaps, not bulk generation.
+// Filtering by hard constraints happens at runtime via extractBannedFoods().
+const _B=(n,d,p,k)=>({name:n,desc:d,p,kcal:k}); // shorthand
+const MEAL_DB={
+breakfasts:[
+  _B('Scrambled eggs & avocado toast','3 eggs + 2 slices whole grain bread + half avocado + whole milk (200ml)',34,550),
+  _B('Veggie omelette & toast','4 eggs + diced peppers + mushrooms + spinach + 1 slice whole grain toast + whole milk (200ml)',36,520),
+  _B('French toast & fried egg','2 slices whole grain bread in 2-egg batter + 1 fried egg + honey (1 tsp) + whole milk (200ml)',32,560),
+  _B('Poached eggs on spinach toast','3 poached eggs + sautéed spinach + 2 slices whole grain toast + whole milk (200ml)',34,520),
+  _B('Egg & cheddar omelette','3 eggs + aged cheddar (30g) + mushrooms + 1 slice whole grain toast + whole milk (200ml)',36,540),
+  _B('Fried eggs & mushrooms on toast','3 fried eggs + sautéed mushrooms (80g) + 2 slices whole grain toast + whole milk (200ml)',32,510),
+  _B('Scrambled eggs & smoked salmon','3 eggs + smoked salmon (80g) + 2 slices whole grain bread + whole milk (200ml)',40,580),
+  _B('Egg & Parmesan frittata','4 eggs + grated Parmesan (25g) + cherry tomatoes + 2 slices whole grain toast + whole milk (200ml)',38,560),
+  _B('Baked eggs in tomato','3 eggs baked in tomato passata (150ml) + 2 slices whole grain bread + whole milk (200ml)',32,510),
+  _B('Egg & ham toastie','3 scrambled eggs + ham (60g) + 2 slices whole grain bread + whole milk (200ml)',38,550),
+  _B('Egg burrito','3 eggs + aged cheddar (30g) + 2 whole wheat wraps + half avocado',36,600),
+  _B('Full egg breakfast','3 fried eggs + 2 grilled tomatoes + mushrooms (80g) + 2 slices whole grain toast + whole milk (200ml)',32,520),
+  _B('Egg & prosciutto toast','3 eggs + prosciutto (50g) + 2 slices whole grain toast + whole milk (200ml)',36,540),
+  _B('Poached eggs & avocado','3 poached eggs + half avocado + 2 slices whole grain toast + whole milk (200ml)',34,550),
+  _B('Eggs & baked beans on toast','3 eggs + baked beans (120g) + 2 slices whole grain toast + whole milk (200ml)',34,560),
+  _B('Egg white omelette & cheddar wrap','3 eggs + aged cheddar (35g) + 2 whole wheat wraps + cherry tomatoes',36,530),
+],
+lunches:[
+  _B('Chicken breast & rice bowl','chicken breast (160g) + white rice (100g dry) + cucumber + cherry tomatoes + olive oil (1 tbsp)',46,660),
+  _B('Beef mince & basmati rice','lean beef mince (150g) + basmati rice (100g dry) + roasted peppers + courgette + olive oil (1 tbsp)',44,650),
+  _B('Chicken & whole grain pasta','chicken breast (160g) + whole grain pasta (100g dry) + tomato passata (150ml) + Parmesan (20g) + olive oil (1 tbsp)',50,680),
+  _B('Pork tenderloin & sweet potato','pork tenderloin (160g) + sweet potato (200g) + green beans + olive oil (1 tbsp)',44,640),
+  _B('Cod & roasted potatoes','cod fillet (200g) + potatoes (200g) + spinach + olive oil (1 tbsp) + lemon',46,580),
+  _B('Chicken & lentil soup','chicken breast (150g) + red lentils (80g dry) + carrots + celery + onion + 2 slices whole grain bread',46,640),
+  _B('Beef strips stir-fry & rice','lean beef strips (150g) + white rice (100g dry) + peppers + courgette + soy sauce (1 tbsp) + olive oil (1 tbsp)',44,650),
+  _B('Sea bass & new potatoes','sea bass fillet (200g) + new potatoes (200g) + asparagus + olive oil (1 tbsp) + lemon',44,580),
+  _B('Chicken thighs & quinoa','chicken thighs (200g) + quinoa (80g dry) + roasted courgette + peppers + olive oil (1 tbsp)',46,660),
+  _B('Lamb mince & rice','lean lamb mince (150g) + white rice (100g dry) + peas + carrots + olive oil (1 tbsp)',42,650),
+  _B('Beef bolognese & pasta','lean beef mince (150g) + pasta (100g dry) + tomato passata (150ml) + Parmesan (20g) + olive oil (1 tbsp)',46,670),
+  _B('Grilled chicken wrap','chicken breast (150g) + 2 whole wheat wraps + half avocado + cherry tomatoes + olive oil',42,620),
+  _B('Pork & couscous bowl','pork tenderloin (150g) + couscous (100g dry) + roasted peppers + spinach + olive oil (1 tbsp)',44,640),
+  _B('Sirloin steak & potatoes','sirloin steak (180g) + roasted potatoes (200g) + spinach + olive oil (1 tbsp)',48,680),
+  _B('Chicken & chickpea bowl','chicken breast (160g) + chickpeas (100g) + cherry tomatoes + cucumber + olive oil (1 tbsp) + lemon',48,640),
+  _B('Tuna & chickpea salad','canned tuna (160g drained) + chickpeas (100g) + cherry tomatoes + cucumber + olive oil (1 tbsp) + lemon',46,540),
+  _B('Salmon & basmati rice','salmon fillet (180g) + basmati rice (100g dry) + green beans + olive oil (1 tbsp) + lemon',48,660),
+  _B('Turkey breast & sweet potato','turkey breast (160g) + sweet potato (200g) + spinach + olive oil (1 tbsp)',46,620),
+  _B('Chicken breast & brown rice','chicken breast (160g) + brown rice (100g dry) + roasted courgette + cherry tomatoes + olive oil (1 tbsp)',46,650),
+  _B('Pork loin & potato','pork loin (160g) + new potatoes (200g) + asparagus + olive oil (1 tbsp)',44,620),
+],
+snacks:[
+  _B('Aged cheddar & rice cakes','aged cheddar (40g) + rice cakes (4) + apple',18,300),
+  _B('Hard-boiled eggs & apple','3 hard-boiled eggs + apple + almonds (15g)',22,320),
+  _B('Eggs & avocado toast','2 hard-boiled eggs + half avocado + 1 slice whole grain toast',20,330),
+  _B('Grana Padano & banana','Grana Padano (35g) + rice cakes (4) + banana',20,320),
+  _B('Pecorino & crackers','aged Pecorino (40g) + wholegrain crackers (30g) + cherry tomatoes',18,280),
+  _B('Peanut butter rice cakes','peanut butter (2 tbsp) + rice cakes (4) + banana',14,360),
+  _B('Eggs & cheddar crackers','2 hard-boiled eggs + aged cheddar (25g) + wholegrain crackers (30g)',22,300),
+  _B('Parmesan toast','grated Parmesan (30g) + 2 slices whole grain toast + cherry tomatoes',18,300),
+  _B('Scrambled eggs & cheddar toast','2 scrambled eggs + half avocado + 1 slice wholegrain toast',18,340),
+  _B('Chicken & rice cakes','cooked chicken breast (80g) + rice cakes (4) + cherry tomatoes',26,300),
+  _B('Aged cheddar & pear','aged cheddar (40g) + pear + walnuts (20g)',18,320),
+  _B('Boiled eggs & banana','2 hard-boiled eggs + banana + rice cakes (3)',18,310),
+],
+dinners:[
+  _B('Chicken breast & roasted potatoes','chicken breast (200g) + roasted potatoes (200g) + spinach + olive oil (1 tbsp)',46,640),
+  _B('Beef mince & pasta','lean beef mince (150g) + pasta (100g dry) + tomato passata (150ml) + Parmesan (20g)',46,660),
+  _B('Sea bass & new potatoes','sea bass fillet (200g) + new potatoes (200g) + courgette + olive oil (1 tbsp)',44,600),
+  _B('Pork tenderloin & brown rice','pork tenderloin (160g) + brown rice (100g dry) + roasted courgette + olive oil (1 tbsp)',44,640),
+  _B('Chicken thighs & sweet potato','chicken thighs (220g) + sweet potato (200g) + green beans + olive oil (1 tbsp)',46,660),
+  _B('Lamb mince & rice','lean lamb mince (150g) + white rice (100g dry) + peas + carrots + olive oil (1 tbsp)',42,640),
+  _B('Baked cod & quinoa','cod fillet (200g) + quinoa (80g dry) + roasted cherry tomatoes + olive oil (1 tbsp)',44,580),
+  _B('Sirloin steak & potatoes','sirloin steak (180g) + roasted potatoes (200g) + spinach + olive oil (1 tbsp)',48,680),
+  _B('Pork mince bolognese','pork mince (150g) + pasta (100g dry) + tomato passata (150ml) + Parmesan (20g)',44,650),
+  _B('Chicken & lentils','chicken breast (160g) + red lentils (80g dry) + carrots + onion + olive oil (1 tbsp)',46,620),
+  _B('Beef strips & rice noodles','lean beef strips (150g) + rice noodles (100g dry) + peppers + courgette + soy sauce (1 tbsp)',44,640),
+  _B('Sea bass & quinoa','sea bass fillet (200g) + quinoa (80g dry) + roasted peppers + olive oil (1 tbsp)',44,600),
+  _B('Roast chicken & veg','roast chicken leg (220g) + roasted potatoes (200g) + carrots + olive oil (1 tbsp)',46,660),
+  _B('Pork loin & potato wedges','pork loin (180g) + potato wedges (200g) + asparagus + olive oil (1 tbsp)',44,640),
+  _B('Beef & potato stew','lean beef (160g) + potatoes (200g) + carrots + onion + olive oil (1 tbsp)',42,640),
+  _B('Chicken pasta bake','chicken breast (160g) + pasta (100g dry) + spinach + Parmesan (20g) + olive oil (1 tbsp)',48,670),
+  _B('Baked salmon & potatoes','salmon fillet (200g) + new potatoes (200g) + asparagus + olive oil (1 tbsp)',46,660),
+  _B('Turkey & lentils','turkey breast (160g) + red lentils (80g dry) + carrots + celery + olive oil (1 tbsp)',46,600),
+  _B('Baked cod & potatoes','cod fillet (200g) + potatoes (200g) + green beans + olive oil (1 tbsp) + lemon',46,590),
+  _B('Chicken & courgette pasta','chicken breast (160g) + pasta (100g dry) + courgette + Parmesan (20g) + olive oil (1 tbsp)',48,660),
+],
+};
+
+const _SHAKE_AM={time:'10:30',label:'Morning shake',name:'Whey protein shake',desc:'Whey (1 scoop) + banana + whole milk (300ml)',p:35,kcal:320,shake:true};
+const _SHAKE_PM={time:'21:30',label:'Evening shake',name:'Casein shake',desc:'Casein (1 scoop) + whole milk (300ml)',p:30,kcal:220,shake:true};
+
+function dbIsAllowed(meal){
+  const banned=extractBannedFoods(getHardConstraints());
+  if(!banned.length)return true;
+  const txt=(meal.name+' '+meal.desc).toLowerCase();
+  return!banned.some(f=>new RegExp('\\b'+f.replace(/\s+/g,'\\s+')+'\\b','i').test(txt));
+}
+
+function generateWeekFromDB(prevWeek){
+  const shuffle=arr=>[...arr].sort(()=>Math.random()-0.5);
+  const prevNames=new Set(prevWeek?prevWeek.flatMap(d=>d.items.map(it=>it.name)):[]);
+  // Prefer meals not used in prevWeek; fall back to full pool if not enough variety
+  const pool=cat=>{const all=MEAL_DB[cat].filter(dbIsAllowed);const fresh=all.filter(m=>!prevNames.has(m.name));return shuffle(fresh.length>=7?fresh:all);};
+  const bs=pool('breakfasts'),ls=pool('lunches'),ss=pool('snacks'),ds=pool('dinners');
+  const TRAIN=[0,1,3,4,5];
+  return Array.from({length:7},(_,d)=>{
+    const b=bs[d%Math.max(bs.length,1)],l=ls[d%Math.max(ls.length,1)],s=ss[d%Math.max(ss.length,1)],dn=ds[d%Math.max(ds.length,1)];
+    const isTr=TRAIN.includes(d);
+    const items=[
+      {time:'7:30',label:'Breakfast',name:b.name,desc:b.desc,p:b.p,kcal:b.kcal,shake:false},
+      {..._SHAKE_AM},
+      {time:'13:00',label:'Lunch',name:l.name,desc:l.desc,p:l.p,kcal:l.kcal,shake:false},
+      {time:'16:00',label:isTr?'Pre-workout':'Snack',name:s.name,desc:s.desc,p:s.p,kcal:s.kcal,shake:false},
+      {time:'19:30',label:'Dinner',name:dn.name,desc:dn.desc,p:dn.p,kcal:dn.kcal,shake:false},
+      {..._SHAKE_PM},
+    ];
+    return{kcal:items.reduce((a,it)=>a+(it.kcal||0),0),protein:items.reduce((a,it)=>a+(it.p||0),0),items};
+  });
+}
+
+function generatePartialFromDB(selectedLabels){
+  const savedRaw=localStorage.getItem('gp_meals_w1');
+  const week=savedRaw?JSON.parse(savedRaw):JSON.parse(JSON.stringify(mealMatrix[0]));
+  const TRAIN=[0,1,3,4,5];
+  const labelToPool={
+    'Breakfast':MEAL_DB.breakfasts.filter(dbIsAllowed),
+    'Lunch':MEAL_DB.lunches.filter(dbIsAllowed),
+    'Dinner':MEAL_DB.dinners.filter(dbIsAllowed),
+    'Pre-workout':MEAL_DB.snacks.filter(dbIsAllowed),
+    'Snack':MEAL_DB.snacks.filter(dbIsAllowed),
+  };
+  for(const label of selectedLabels){
+    const pool=labelToPool[label]||[];if(!pool.length)continue;
+    for(let d=0;d<7;d++){
+      const meal=pool[Math.floor(Math.random()*pool.length)];
+      const idx=week[d].items.findIndex(it=>it.label===label||it.label.includes(label.split('/')[0].trim())||label.includes(it.label));
+      if(idx<0)continue;
+      const isTr=TRAIN.includes(d);
+      week[d].items[idx]={time:week[d].items[idx].time,label:isTr&&(label==='Snack')?'Pre-workout':label,name:meal.name,desc:meal.desc,p:meal.p,kcal:meal.kcal,shake:false};
+      week[d].protein=week[d].items.reduce((s,it)=>s+(it.p||0),0);
+      week[d].kcal=week[d].items.reduce((s,it)=>s+(it.kcal||0),0);
+    }
+  }
+  return week;
+}
+
 const FOOD_SUBS={
   'salmon':'chicken breast','tuna':'chicken breast','mackerel':'chicken breast',
   'turkey':'lean pork mince','turkey mince':'lean pork mince',
@@ -2956,52 +3085,32 @@ async function partialRegenerate(selectedLabels,tKcal,tProtein,excl,extraExcl){
   localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
 }
 
-async function startPlanGeneration(mode){
+function startPlanGeneration(mode){
   if(planGenerating)return;
   mode=mode||'full';
   planGenerating=true;
-  const btn=document.getElementById('plan-gen-btn');
-  btn.disabled=true;
-  document.getElementById('plan-gen-spin').style.display='inline-block';
-  document.getElementById('plan-gen-text').textContent='Generating…';
-  document.getElementById('plan-gen-progress').style.display='block';
-  const excl=[...document.querySelectorAll('.excl-list-wrap input[type=checkbox]:checked')].map(cb=>cb.value);
-  const extraExcl=(document.getElementById('plan-extra-excl')?.value||'').trim();
-  const t=getAdjustedTargets();
-  const tKcal=t.kcal;
-  const tProtein=t.protein;
-  try{
-    if(mode==='partial'){
-      const selectedLabels=[...document.querySelectorAll('[id^="regen-"]:checked')].map(cb=>cb.value);
-      if(!selectedLabels.length){alert('Select at least one meal type to regenerate.');planGenerating=false;btn.disabled=false;return;}
-      await partialRegenerate(selectedLabels,tKcal,tProtein,excl,extraExcl);
-    }else{
-      const genWeeks=window._planWeeks||1;
-      const week1=await generatePlanWeek(1,genWeeks,tKcal,tProtein,excl,extraExcl,0);
-      let week2=week1;
-      if(genWeeks===2){
-        const w1Dinners=week1.map(d=>d.items.find(it=>it.label==='Dinner')?.name||'').filter(Boolean);
-        week2=await generatePlanWeek(2,genWeeks,tKcal,tProtein,[...excl,...w1Dinners],extraExcl,7);
-      }
-      const prevRaw=localStorage.getItem('gp_meals_w1');
-      const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
-      const fallbackDays=(week1._fallbackDays||0)+(genWeeks===2?week2._fallbackDays||0:0);
-      sanitisePlan(week1);sanitisePlan(week2);
-      localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
-      localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
-      mealMatrix=[week1,week2];
-      localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
-      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,fallbackDays}));
-    }
-    closePlannerSheet();
-    go('plan');
-  }catch(err){
-    alert('Generation failed: '+err.message+'\nEnsure ANTHROPIC_API_KEY is set in Netlify environment variables.');
-    btn.disabled=false;
-    document.getElementById('plan-gen-spin').style.display='none';
-    document.getElementById('plan-gen-text').textContent=mode==='full'?'✨ Generate':'🔄 Regenerate';
-    document.getElementById('plan-gen-progress').style.display='none';
-  }finally{planGenerating=false;}
+  const prevRaw=localStorage.getItem('gp_meals_w1');
+  if(mode==='partial'){
+    const selectedLabels=[...document.querySelectorAll('[id^="regen-"]:checked')].map(cb=>cb.value);
+    if(!selectedLabels.length){planGenerating=false;alert('Select at least one meal type.');return;}
+    const week=generatePartialFromDB(selectedLabels);
+    const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week):null;
+    localStorage.setItem('gp_meals_w1',JSON.stringify(week));
+    mealMatrix[0]=week;
+    localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
+  }else{
+    const week1=generateWeekFromDB(null);
+    const week2=generateWeekFromDB(week1);
+    const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
+    localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
+    localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
+    mealMatrix=[week1,week2];
+    localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
+    localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
+  }
+  planGenerating=false;
+  closePlannerSheet();
+  go('plan');
 }
 
 // init
