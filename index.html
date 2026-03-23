@@ -2708,27 +2708,46 @@ async function planCallClaude(prompt){
 function buildDayPrompt(d,isTr,tKcal,tProtein,tCarbs,usedCarbs,usedDinners,omega3,iron,excl,extraExcl,retryErr){
   const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][d];
   const o3Need=omega3<3&&(7-d)<=(3-omega3),feNeed=iron<3&&(7-d)<=(3-iron);
-  const exclStr=[...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean).join(', ');
-  const hardRules=getHardConstraints().map(c=>`• ${c}`).join('\n');
+  const constraints=getHardConstraints();
+  const hardRules=constraints.map(c=>`• ${c}`).join('\n');
+  // Extract all explicitly banned foods from hard constraints
+  const bannedFromConstraints=constraints.flatMap(c=>{
+    const ms=c.match(/no\s+([\w\s]+?)(?:,|\bor\b|$)/gi)||[];
+    return ms.map(m=>m.replace(/^no\s+/i,'').trim().toLowerCase()).filter(f=>f.length>2);
+  });
+  const allExcl=[...bannedFromConstraints,...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean);
+  const exclStr=[...new Set(allExcl)].join(', ');
+  // Don't suggest omega-3 fish that the user has banned
+  const o3Fish=['salmon','tuna','mackerel','sardines'];
+  const o3AllBanned=o3Fish.filter(f=>bannedFromConstraints.some(b=>b.includes(f)));
+  const o3Available=o3Fish.filter(f=>!o3AllBanned.some(b=>b.includes(f)));
+  const o3Str=o3Available.join('/');
+  const o3Line=o3Available.length===0?'':o3Need?`• MUST include ${o3Str} (omega-3 critical today)`:omega3<3?`• Prefer omega-3 source (${o3Str})`:'';
+  // Build leafy greens suggestion excluding banned veg
+  const bannedGreens=['broccoli','kale','spinach','cabbage','cauliflower'].filter(g=>bannedFromConstraints.some(b=>b.includes(g)));
+  const availableGreens=['spinach','kale','broccoli','chard','courgette','green beans'].filter(g=>!bannedGreens.includes(g));
+  const greensLine=availableGreens.length>0?`• Include leafy greens/veg (${availableGreens.slice(0,3).join(', ')}, etc.)`:'• Include non-leafy vegetables';
   return`You are a sports nutritionist. Generate ONE day's meal plan. Return ONLY valid JSON — no markdown, no explanation.
 
 DAY ${d+1}/7: ${dname} (${isTr?'TRAINING DAY':'REST DAY'})
 TARGETS: ${tKcal} kcal | ${tProtein}g protein | ${tCarbs}g carbs
 
+⛔ HARD RULES — THESE ARE ABSOLUTE. ANY VIOLATION MAKES THE RESPONSE INVALID:
+${hardRules}
+${exclStr?`⛔ NEVER USE ANY OF THESE IN ANY MEAL: ${exclStr}`:''}
+
 FIXED SHAKES — copy exactly:
 10:30 → {"time":"10:30","label":"Morning shake","name":"Whey protein shake","desc":"Whey (1 scoop) + [one fruit] + whole milk (300 ml)","p":35,"shake":true}
 21:30 → {"time":"21:30","label":"Evening shake","name":"Casein shake","desc":"Casein (1 scoop) + whole milk (300 ml)","p":30,"shake":true}
 
-HARD RULES:
-${hardRules}
+NUTRITION RULES:
 • Each main meal (breakfast/lunch/dinner) ≥30g protein
-• Include leafy greens (spinach, kale, broccoli, etc.)
+${greensLine}
 ${isTr?'• Training day: 16:00 pre-workout snack must include fast carbs (+100 kcal)':'• Rest day: carbs −15%, same protein'}
-${o3Need?'• MUST include salmon, sardines or mackerel (omega-3 critical today)':omega3<3?'• Prefer omega-3 source (salmon/sardines/mackerel)':''}
+${o3Line}
 ${feNeed?'• MUST include red meat or lentils (iron critical today)':iron<3?'• Prefer red meat or lentils today':''}
 ${usedCarbs.length?`• Carbs used so far: ${usedCarbs.join(', ')} — USE A DIFFERENT carb source today`:''}
 ${usedDinners.length?`• Dinner must be completely different from: ${usedDinners.join(' | ')}`:''}
-${exclStr?`• DO NOT USE: ${exclStr}`:''}
 ${retryErr?`⚠ PREVIOUS ATTEMPT FAILED: "${retryErr}" — fix this issue.`:''}
 
 Required JSON:
@@ -2744,8 +2763,14 @@ Required JSON:
 
 function buildSingleMealPrompt(mealLabel,dayIdx,isTr,tKcal,tProtein,excl,extraExcl,otherMeals,retryErr){
   const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][dayIdx];
-  const hardRules=getHardConstraints().map(c=>`• ${c}`).join('\n');
-  const exclStr=[...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean).join(', ');
+  const constraints=getHardConstraints();
+  const hardRules=constraints.map(c=>`• ${c}`).join('\n');
+  const bannedFromConstraints=constraints.flatMap(c=>{
+    const ms=c.match(/no\s+([\w\s]+?)(?:,|\bor\b|$)/gi)||[];
+    return ms.map(m=>m.replace(/^no\s+/i,'').trim().toLowerCase()).filter(f=>f.length>2);
+  });
+  const allExcl=[...bannedFromConstraints,...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean);
+  const exclStr=[...new Set(allExcl)].join(', ');
   const timeMap={Breakfast:'7:30',Lunch:'13:00',Dinner:'19:30'};
   const time=timeMap[mealLabel]||'16:00';
   const minP=(['Breakfast','Lunch','Dinner'].includes(mealLabel))?30:15;
@@ -2756,9 +2781,9 @@ MEAL: ${mealLabel} on ${dname} (${isTr?'Training':'Rest'} day)
 TARGET: ~${tKcal} kcal, ≥${minP}g protein (aim for ~${tProtein}g)
 OTHER MEALS TODAY (for context): ${ctx||'none'}
 
-HARD RULES:
+⛔ HARD RULES — ABSOLUTE, NO EXCEPTIONS:
 ${hardRules}
-${exclStr?`• DO NOT USE: ${exclStr}`:''}
+${exclStr?`⛔ NEVER USE ANY OF THESE: ${exclStr}`:''}
 ${retryErr?`⚠ PREVIOUS ATTEMPT FAILED: "${retryErr}" — fix this.`:''}
 
 Return JSON:
@@ -2769,13 +2794,16 @@ function validatePlanDay(data,tProtein,excl){
   if(!data||!Array.isArray(data.items)||data.items.length<6)return'Missing items array';
   const totalP=data.items.reduce((s,it)=>s+(it.p||0),0);
   if(Math.abs(totalP-tProtein)>12)return`Protein ${totalP}g too far from target ${tProtein}g`;
-  const allDesc=data.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
-  // Validate against current hard constraints
+  const allText=data.items.map(it=>((it.name||'')+' '+(it.desc||'')).toLowerCase()).join(' ');
+  // Validate against current hard constraints — extract banned food tokens
   for(const c of getHardConstraints()){
-    const banned=c.match(/no\s+([\w\s,]+?)(?:[,.]|$)/gi)||[];
-    banned.forEach(b=>{const food=b.replace(/^no\s+/i,'').trim().toLowerCase();if(food.length>3&&allDesc.includes(food)){}});
+    const ms=c.match(/no\s+([\w\s]+?)(?:,|\bor\b|[.:]|$)/gi)||[];
+    for(const m of ms){
+      const food=m.replace(/^no\s+/i,'').trim().toLowerCase();
+      if(food.length>2&&allText.includes(food))return`Hard constraint violated: contains "${food}"`;
+    }
   }
-  for(const ex of excl){if(ex&&allDesc.includes(ex.toLowerCase()))return`Contains excluded: ${ex}`;}
+  for(const ex of excl){if(ex&&allText.includes(ex.toLowerCase()))return`Contains excluded: ${ex}`;}
   return null;
 }
 
