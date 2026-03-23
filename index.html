@@ -2700,11 +2700,42 @@ function updateGenProgress(step,total,label,status){
   const st=document.getElementById('gen-prog-status');if(st&&status)st.textContent=status;
 }
 
-async function planCallClaude(prompt){
-  const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-3-5-haiku-20241022',max_tokens:1400,messages:[{role:'user',content:prompt}]})});
+async function planCallClaude(prompt,systemMsg){
+  const bodyObj={model:'claude-3-5-haiku-20241022',max_tokens:1400,messages:[{role:'user',content:prompt}]};
+  if(systemMsg)bodyObj.system=systemMsg;
+  const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bodyObj)});
   const data=await r.json();
   if(!r.ok||data.error)throw new Error(data.error?.message||'API error '+r.status);
   return data.content[0].text.trim();
+}
+
+// Safe substitutes for banned ingredients (no extra API calls needed)
+const FOOD_SUBS={
+  'salmon':'chicken breast','tuna':'chicken breast','mackerel':'chicken breast',
+  'turkey':'lean pork mince','turkey mince':'lean pork mince',
+  'broccoli':'green beans','cabbage':'courgette',
+  'oats':'whole grain bread','oat porridge':'scrambled eggs',
+  'greek yogurt':'skyr','cottage cheese':'skyr',
+  'ricotta':'grated Parmesan','mascarpone':'grated Parmesan',
+  'brie':'aged cheddar','protein bar':'handful of almonds','protein bars':'handful of almonds',
+};
+function sanitisePlan(week){
+  const banned=extractBannedFoods(getHardConstraints());
+  if(!banned.length)return week;
+  for(const day of week){
+    for(const item of (day.items||[])){
+      if(item.shake)continue;
+      for(const food of banned){
+        const re=new RegExp('\\b'+food.replace(/\s+/g,'\\s+')+'\\b','gi');
+        if(re.test(item.name)||re.test(item.desc)){
+          const sub=FOOD_SUBS[food.toLowerCase()]||'chicken breast';
+          item.name=(item.name||'').replace(re,sub);
+          item.desc=(item.desc||'').replace(re,sub);
+        }
+      }
+    }
+  }
+  return week;
 }
 
 // Robustly extract individual banned food names from constraint strings.
@@ -2770,7 +2801,6 @@ ${o3Line}
 ${feNeed?'• MUST include red meat or lentils (iron critical today)':iron<3?'• Prefer red meat or lentils today':''}
 ${usedCarbs.length?`• Carbs used so far: ${usedCarbs.join(', ')} — USE A DIFFERENT carb source today`:''}
 ${usedDinners.length?`• Dinner must be completely different from: ${usedDinners.join(' | ')}`:''}
-${retryErr?`⚠ PREVIOUS ATTEMPT FAILED: "${retryErr}" — fix this issue.`:''}
 
 Required JSON:
 {"kcal":${tKcal},"protein":${tProtein},"carbs":${tCarbs},"fat":70,"items":[
@@ -2848,36 +2878,26 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
   const week=[];
   let usedCarbs=[],usedDinners=[],omega3=0,iron=0,fallbackDays=0;
   const totalSteps=totalWeeks*7;
+  // System message gets highest priority — model follows these much more reliably
+  const bannedStr=extractBannedFoods(getHardConstraints()).join(', ');
+  const systemMsg=bannedStr?`You are a sports nutritionist generating meal plans in JSON. STRICT REQUIREMENT — never include these ingredients in any meal: ${bannedStr}. No exceptions.`:null;
   for(let d=0;d<7;d++){
     const isTr=TRAIN.includes(d);
     const tKcalDay=isTr?tKcal+100:Math.round(tKcal*0.97);
     const tCarbs=isTr?Math.round(tKcalDay*0.42/4):Math.round(tKcalDay*0.36/4);
-    let dayData=null,lastErr=null,lastParsed=null;
-    for(let attempt=0;attempt<3&&!dayData;attempt++){
-      try{
-        updateGenProgress(progressOffset+d+1,totalSteps,`Week ${weekNum} · ${dnames[d]}${attempt>0?` (retry ${attempt})`:''}`,`Day ${progressOffset+d+1} of ${totalSteps}…`);
-        const raw=await planCallClaude(buildDayPrompt(d,isTr,tKcalDay,tProtein,tCarbs,usedCarbs,usedDinners,omega3,iron,excl,extraExcl,attempt>0?lastErr:null));
-        const match=raw.match(/\{[\s\S]*\}/);
-        if(!match)throw new Error('No JSON in response');
+    let dayData=null;
+    updateGenProgress(progressOffset+d+1,totalSteps,`Week ${weekNum} · ${dnames[d]}`,`Day ${progressOffset+d+1} of ${totalSteps}…`);
+    try{
+      const raw=await planCallClaude(buildDayPrompt(d,isTr,tKcalDay,tProtein,tCarbs,usedCarbs,usedDinners,omega3,iron,excl,extraExcl,null),systemMsg);
+      const match=raw.match(/\{[\s\S]*\}/);
+      if(match){
         const parsed=JSON.parse(match[0]);
-        if(parsed&&Array.isArray(parsed.items)&&parsed.items.length>=6)lastParsed=parsed;
-        const err=validatePlanDay(parsed,excl);
-        if(err){lastErr=err;console.warn(`Day ${d+1} attempt ${attempt+1} failed validation:`,err);}
-        else{dayData=parsed;}
-      }catch(e){lastErr=e.message;console.warn(`Day ${d+1} attempt ${attempt+1} error:`,e.message);}
-    }
-    if(!dayData){
-      if(lastParsed){
-        // API is working but AI kept violating constraints — use last AI response anyway
-        // (better than embedded meals which also contain banned foods)
-        dayData=lastParsed;
-        console.warn(`Day ${d+1} using imperfect AI response (constraint: ${lastErr})`);
-      }else{
-        // API call failed completely — use embedded fallback
-        dayData=JSON.parse(JSON.stringify(embeddedMeals[Math.min(weekNum-1,1)][d]));
-        fallbackDays++;
-        console.error(`Day ${d+1} API failed (${lastErr}), using embedded fallback`);
+        if(parsed&&Array.isArray(parsed.items)&&parsed.items.length>=6)dayData=parsed;
       }
+    }catch(e){console.warn(`Day ${d+1} error:`,e.message);}
+    if(!dayData){
+      dayData=JSON.parse(JSON.stringify(embeddedMeals[Math.min(weekNum-1,1)][d]));
+      fallbackDays++;
     }
     const allDesc=dayData.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
     ['white rice','basmati rice','brown rice','pasta','potato','sweet potato','quinoa','couscous','lentils'].forEach(c=>{if(allDesc.includes(c)&&!usedCarbs.includes(c))usedCarbs.push(c);});
@@ -2966,6 +2986,7 @@ async function startPlanGeneration(mode){
       const prevRaw=localStorage.getItem('gp_meals_w1');
       const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
       const fallbackDays=(week1._fallbackDays||0)+(genWeeks===2?week2._fallbackDays||0:0);
+      sanitisePlan(week1);sanitisePlan(week2);
       localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
       localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
       mealMatrix=[week1,week2];
