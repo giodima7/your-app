@@ -641,6 +641,29 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
 .goal-prog-row{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
 .goal-prog-val{font-family:'Sora',sans-serif;font-size:26px;font-weight:800;color:var(--text);letter-spacing:-0.5px}
 .goal-prog-target{font-size:13px;color:var(--muted);font-weight:500}
+/* MEAL PLANNER */
+#planner-modal{position:fixed;inset:0;background:rgba(15,15,15,0.5);display:none;align-items:flex-end;z-index:300}
+#planner-modal.show{display:flex}
+.planner-sheet{background:var(--bg);border-radius:24px 24px 0 0;padding:24px 20px 44px;width:100%;max-width:500px;margin:0 auto;animation:slideUp .3s ease;max-height:88vh;overflow-y:auto}
+.planner-sheet::-webkit-scrollbar{display:none}
+.plan-day-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.plan-day-row:last-child{border-bottom:none}
+.plan-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.plan-day-lbl{font-size:10px;font-weight:700;color:var(--muted);width:24px;flex-shrink:0;text-transform:uppercase;padding-top:2px}
+.plan-day-info{flex:1}
+.plan-day-title{font-size:12px;font-weight:700;color:var(--text);line-height:1.4}
+.plan-day-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.gen-box{background:var(--elevated);border-radius:var(--radius-sm);padding:14px;margin-top:12px}
+.gen-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin:8px 0 5px}
+.gen-bar-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .5s ease}
+.excl-list-wrap{max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 12px 8px;background:var(--card);margin-bottom:10px}
+.excl-list-wrap::-webkit-scrollbar{display:none}
+.excl-cat-head{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:8px 0 3px}
+.excl-item{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border)}
+.excl-item:last-child{border-bottom:none}
+.excl-lbl{font-size:13px;color:var(--text);font-weight:500;cursor:pointer}
+.diff-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.diff-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green)}
 </style>
 <body>
 <div id="app">
@@ -661,6 +684,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
     <button class="nav-btn active" id="nav-today" onclick="go('today')"><span class="nav-icon">⚡</span><span class="nav-label">Today</span></button>
     <button class="nav-btn" id="nav-train" onclick="go('train')"><span class="nav-icon">🏃</span><span class="nav-label">Train</span></button>
     <button class="nav-btn" id="nav-eat" onclick="go('eat')"><span class="nav-icon">🥗</span><span class="nav-label">Eat</span></button>
+    <button class="nav-btn" id="nav-plan" onclick="go('plan')"><span class="nav-icon">🍽️</span><span class="nav-label">Plan</span></button>
     <button class="nav-btn" id="nav-shop" onclick="go('shop')"><span class="nav-icon">🛒</span><span class="nav-label">Shop</span></button>
     <button class="nav-btn" id="nav-progress" onclick="go('progress')"><span class="nav-icon">📊</span><span class="nav-label">Progress</span></button>
     <button class="nav-btn" id="nav-settings" onclick="go('settings')"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></button>
@@ -740,6 +764,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
     <div class="g-done-title">Workout complete!</div>
     <div class="g-done-sub">Every single set done. Hydrate, rest well, and come back stronger.</div>
     <button class="g-done-btn" onclick="closeGuided()">Back to training</button>
+  </div>
+</div>
+
+<!-- PLANNER MODAL -->
+<div id="planner-modal" onclick="if(event.target===this)closePlannerSheet()">
+  <div class="planner-sheet">
+    <div id="planner-sheet-content"></div>
   </div>
 </div>
 
@@ -1172,6 +1203,9 @@ function getMealWeek(week){
   return mealMatrix[week]||embeddedMeals[week]||embeddedMeals[0];
 }
 function loadMealMatrix(){
+  // AI-generated plan takes priority
+  try{const lw1=localStorage.getItem('gp_meals_w1'),lw2=localStorage.getItem('gp_meals_w2');
+    if(lw1&&lw2){mealMatrix=[JSON.parse(lw1),JSON.parse(lw2)];return;}}catch(e){}
   if(typeof fetch!=='function')return;
   if(mealMatrixPromise)return mealMatrixPromise;
   const targets=['/meals.json','./meals.json'];
@@ -1374,6 +1408,7 @@ const TAB_META={
   today:{title:null,sub:null},
   train:{icon:'🏃',title:'Train',sub:'Home workout plan · PPL'},
   eat:{icon:'🥗',title:'Eat',sub:'Meal & nutrition plan'},
+  plan:{icon:'🍽️',title:'Meal Planner',sub:'AI-generated nutrition plans'},
   shop:{icon:'🛒',title:'Shop',sub:'Shopping list from meal plan'},
   progress:{icon:'📊',title:'Progress',sub:'Your body, your data'},
   settings:{icon:'⚙️',title:'Settings',sub:'Preferences & data'},
@@ -1403,6 +1438,7 @@ function render(animate){
   if(tab==='today')c.innerHTML=rToday();
   if(tab==='train')c.innerHTML=rTrain();
   if(tab==='eat')c.innerHTML=rEat();
+  if(tab==='plan')c.innerHTML=rPlanner();
   if(tab==='shop')c.innerHTML=rShop();
   if(tab==='progress'){c.innerHTML=rProgress();drawChart();setTimeout(()=>{loadWeeklyReview();updateBA();},50);}
   if(tab==='settings')c.innerHTML=rSettings();
@@ -2366,7 +2402,7 @@ function rSettings(){
   const notifStatus=typeof Notification!=='undefined'?Notification.permission:'unsupported';
   const notifLabel=notifStatus==='granted'?'Enabled':notifStatus==='denied'?'Blocked in browser':notifStatus==='unsupported'?'Not supported on this device':'Tap to enable';
   const notifClass=notifStatus==='granted'?'notif-granted':notifStatus==='denied'?'notif-denied':'notif-default';
-  const appVersion='1.0.6';
+  const appVersion='1.1.0';
   const g=getGoals();
 
   // ── 🎯 Goals ──
@@ -2488,8 +2524,239 @@ function scheduleNotifs(){
 }
 
 function confirmClearData(){
-  ['gp_workout','gp_meals','gp_food','gp_weight','gp_prs','gp_prs_recent','gp_trainlog','gp_shop'].forEach(k=>localStorage.removeItem(k));
+  ['gp_workout','gp_meals','gp_food','gp_weight','gp_prs','gp_prs_recent','gp_trainlog','gp_shop','gp_meals_w1','gp_meals_w2','gp_meal_exclusions_last','gp_planner_meta'].forEach(k=>localStorage.removeItem(k));
+  mealMatrix=embeddedMeals;
   render();
+}
+
+// ── MEAL PLANNER ──────────────────────────────────────────────────────────────
+const PLAN_TRAIN_DAYS=[0,1,3,4,5]; // Mon Tue Thu Fri Sat
+let planGenerating=false;
+
+function rPlanner(){
+  const savedW1=localStorage.getItem('gp_meals_w1');
+  const meta=JSON.parse(localStorage.getItem('gp_planner_meta')||'null');
+  const w1=savedW1?JSON.parse(savedW1):mealMatrix[0];
+  const dlbls=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const daysHtml=w1.map((day,i)=>{
+    const isTr=PLAN_TRAIN_DAYS.includes(i);
+    const lunch=day.items.find(it=>it.label==='Lunch')||day.items[2];
+    const dinner=day.items.find(it=>it.label==='Dinner')||day.items[4];
+    return`<div class="plan-day-row"><div class="plan-dot" style="background:${isTr?'var(--green)':'var(--muted2)'}"></div><div class="plan-day-lbl">${dlbls[i]}</div><div class="plan-day-info"><div class="plan-day-title">${lunch?.name||'—'} · ${dinner?.name||'—'}</div><div class="plan-day-sub">${day.kcal} kcal · ${day.protein}g protein · ${isTr?'Training':'Rest'}</div></div></div>`;
+  }).join('');
+  const genDate=meta?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Generated ${new Date(meta.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>`:'';
+  const diff=meta?.diff;
+  const diffHtml=diff&&(diff.dinners+diff.lunches+diff.breakfasts)>0?`<div class="card" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">What changed vs last plan</div><div class="diff-badges">${diff.dinners>0?`<span class="diff-badge">🍽️ ${diff.dinners} new dinner${diff.dinners>1?'s':''}</span>`:''}${diff.lunches>0?`<span class="diff-badge">🥗 ${diff.lunches} new lunch${diff.lunches>1?'es':''}</span>`:''}${diff.breakfasts>0?`<span class="diff-badge">🍳 ${diff.breakfasts} new breakfast${diff.breakfasts>1?'s':''}</span>`:''}</div></div>`:'';
+  return`<div class="pad"><div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:800;font-family:'Sora',sans-serif;color:var(--text)">${savedW1?'AI meal plan':'Default plan'}</div>${genDate}</div><span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green);flex-shrink:0;margin-top:2px">7 days</span></div>${daysHtml}</div>
+${diffHtml}<button onclick="openPlannerSheet()" style="width:100%;padding:16px;background:var(--accent);color:#fff;border:none;border-radius:50px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">✨ Generate new week</button>
+<div class="card" style="font-size:12px;color:var(--muted);line-height:1.65"><div style="font-weight:700;color:var(--text);margin-bottom:5px">How it works</div>Claude generates 7 days of meals one at a time, targeting ${BASELINE_KCAL} kcal baseline, ≥150g protein, Omega‑3 ≥3×/week, iron ≥3×/week, rotating carb sources, and leafy greens daily. The Eat tab updates instantly.</div></div>`;
+}
+
+function openPlannerSheet(){
+  const excl=JSON.parse(localStorage.getItem('gp_meal_exclusions_last')||'null');
+  let exclHtml='<div style="font-size:12px;color:var(--muted);padding:8px 0">No previous plan — nothing to exclude yet.</div>';
+  if(excl){
+    const cats=[['Proteins',excl.proteins||[]],['Carbs',excl.carbs||[]],['Vegetables',excl.vegetables||[]]].filter(([,arr])=>arr.length);
+    if(cats.length){
+      exclHtml=`<div class="excl-list-wrap">${cats.map(([cat,items])=>`<div class="excl-cat-head">${cat}</div>`+items.map(item=>{const id='excl-'+item.replace(/\s+/g,'-');return`<div class="excl-item"><input type="checkbox" id="${id}" value="${item}" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer"><label class="excl-lbl" for="${id}">${item.charAt(0).toUpperCase()+item.slice(1)}</label></div>`;}).join('')).join('')}</div>`;
+    }
+  }
+  const g=getGoals();
+  const gainOpts=[{v:0.1,l:'Slow bulk'},{v:0.15,l:'Lean bulk'},{v:0.2,l:'Lean+'},{v:0.25,l:'Standard'},{v:0.3,l:'Moderate'},{v:0.35,l:'Moderate+'},{v:0.4,l:'Aggressive'}];
+  const gainPills=gainOpts.map(o=>`<button onclick="setPlanGain(${o.v})" id="pgain-${Math.round(o.v*100)}" class="goal-pill${g.weeklyGain===o.v?' sel':''}" style="font-size:11px;padding:5px 12px">${o.l}</button>`).join('');
+  document.getElementById('planner-sheet-content').innerHTML=`
+<div class="swap-handle"></div>
+<div class="swap-title">Generate meal plan</div>
+<div class="swap-meal-name" style="margin-bottom:18px">AI-optimised 7-day nutrition plan</div>
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Weekly gain target</div>
+<div class="goal-pills" style="margin:0 0 16px">${gainPills}</div>
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Exclude ingredients from last plan</div>
+${exclHtml}
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Additional one-off exclusions</div>
+<textarea id="plan-extra-excl" class="swap-textarea" style="min-height:56px;margin-bottom:16px" placeholder="e.g. no salmon this week, avoid beef…"></textarea>
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Scope</div>
+<div style="display:flex;gap:8px;margin-bottom:18px">
+  <button class="week-btn active" id="gen-w1-btn" onclick="setPlanWeeks(1)">Week 1 only</button>
+  <button class="week-btn" id="gen-w2-btn" onclick="setPlanWeeks(2)">Both weeks</button>
+</div>
+<button id="plan-gen-btn" onclick="startPlanGeneration()" class="swap-go-btn">
+  <span id="plan-gen-text">✨ Generate</span>
+  <span id="plan-gen-spin" style="display:none" class="spinner"></span>
+</button>
+<div id="plan-gen-progress" style="display:none">
+  <div class="gen-box">
+    <div style="font-size:12px;font-weight:700;color:var(--text)" id="gen-prog-label">Starting…</div>
+    <div class="gen-bar"><div class="gen-bar-fill" id="gen-bar-fill" style="width:0%"></div></div>
+    <div style="font-size:11px;color:var(--muted)" id="gen-prog-status"></div>
+  </div>
+</div>`;
+  window._planWeeks=1;
+  document.getElementById('planner-modal').classList.add('show');
+}
+function closePlannerSheet(){document.getElementById('planner-modal').classList.remove('show');}
+function setPlanGain(v){
+  const g=getGoals();g.weeklyGain=v;saveGoals(g);
+  document.querySelectorAll('[id^="pgain-"]').forEach(b=>b.classList.remove('sel'));
+  const b=document.getElementById('pgain-'+Math.round(v*100));if(b)b.classList.add('sel');
+}
+function setPlanWeeks(n){
+  window._planWeeks=n;
+  document.getElementById('gen-w1-btn').classList.toggle('active',n===1);
+  document.getElementById('gen-w2-btn').classList.toggle('active',n===2);
+}
+function updateGenProgress(step,total,label,status){
+  const pct=Math.round(step/total*100);
+  const bar=document.getElementById('gen-bar-fill');if(bar)bar.style.width=pct+'%';
+  const lbl=document.getElementById('gen-prog-label');if(lbl)lbl.textContent=label;
+  const st=document.getElementById('gen-prog-status');if(st&&status)st.textContent=status;
+}
+
+async function planCallClaude(prompt){
+  const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-3-5-haiku-20241022',max_tokens:1400,messages:[{role:'user',content:prompt}]})});
+  const data=await r.json();
+  if(!r.ok||data.error)throw new Error(data.error?.message||'API error '+r.status);
+  return data.content[0].text.trim();
+}
+
+function buildDayPrompt(d,isTr,tKcal,tProtein,tCarbs,usedCarbs,usedDinners,omega3,iron,excl,extraExcl,retryErr){
+  const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][d];
+  const o3Need=omega3<3&&(7-d)<=(3-omega3),feNeed=iron<3&&(7-d)<=(3-iron);
+  const exclStr=[...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean).join(', ');
+  return`You are a sports nutritionist. Generate ONE day's meal plan. Return ONLY valid JSON — no markdown, no explanation.
+
+DAY ${d+1}/7: ${dname} (${isTr?'TRAINING DAY':'REST DAY'})
+TARGETS: ${tKcal} kcal | ${tProtein}g protein | ${tCarbs}g carbs
+
+FIXED SHAKES — copy exactly:
+10:30 → {"time":"10:30","label":"Morning shake","name":"Whey protein shake","desc":"Whey (1 scoop) + [one fruit] + whole milk (300 ml)","p":35,"shake":true}
+21:30 → {"time":"21:30","label":"Evening shake","name":"Casein shake","desc":"Casein (1 scoop) + whole milk (300 ml)","p":30,"shake":true}
+
+HARD RULES:
+• No Greek yogurt, oats, ricotta, mascarpone, brie, cottage cheese, protein bars
+• Only these cheeses: aged cheddar, Parmesan, Pecorino, Grana Padano
+• Each main meal (breakfast/lunch/dinner) ≥30g protein
+• Include leafy greens (spinach, kale, broccoli, etc.)
+${isTr?'• Training day: 16:00 pre-workout snack must include fast carbs (+100 kcal)':'• Rest day: carbs −15%, same protein'}
+${o3Need?'• MUST include salmon, sardines or mackerel (omega-3 critical today)':omega3<3?'• Prefer omega-3 source (salmon/sardines/mackerel)':''}
+${feNeed?'• MUST include red meat or lentils (iron critical today)':iron<3?'• Prefer red meat or lentils today':''}
+${usedCarbs.length?`• Carbs used so far: ${usedCarbs.join(', ')} — USE A DIFFERENT carb source today`:''}
+${usedDinners.length?`• Dinner must be completely different from: ${usedDinners.join(' | ')}`:''}
+${exclStr?`• DO NOT USE: ${exclStr}`:''}
+${retryErr?`⚠ PREVIOUS ATTEMPT FAILED: "${retryErr}" — fix this issue.`:''}
+
+Required JSON:
+{"kcal":${tKcal},"protein":${tProtein},"carbs":${tCarbs},"fat":70,"items":[
+{"time":"7:30","label":"Breakfast","name":"...","desc":"ingredient (Xg) + ingredient (Xml)","p":34,"shake":false},
+{"time":"10:30","label":"Morning shake","name":"Whey protein shake","desc":"Whey (1 scoop) + banana + whole milk (300 ml)","p":35,"shake":true},
+{"time":"13:00","label":"Lunch","name":"...","desc":"...","p":42,"shake":false},
+{"time":"16:00","label":"${isTr?'Pre-workout':'Snack'}","name":"...","desc":"...","p":20,"shake":false},
+{"time":"19:30","label":"Dinner","name":"...","desc":"...","p":40,"shake":false},
+{"time":"21:30","label":"Evening shake","name":"Casein shake","desc":"Casein (1 scoop) + whole milk (300 ml)","p":30,"shake":true}
+]}`;
+}
+
+function validatePlanDay(data,tProtein,excl){
+  if(!data||!Array.isArray(data.items)||data.items.length<6)return'Missing items array';
+  const totalP=data.items.reduce((s,it)=>s+(it.p||0),0);
+  if(Math.abs(totalP-tProtein)>12)return`Protein ${totalP}g too far from target ${tProtein}g`;
+  const allDesc=data.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
+  for(const f of['greek yogurt','oats ','ricotta','mascarpone','brie','cottage cheese']){if(allDesc.includes(f))return`Contains forbidden: ${f}`;}
+  for(const ex of excl){if(ex&&allDesc.includes(ex.toLowerCase()))return`Contains excluded: ${ex}`;}
+  return null;
+}
+
+function extractPlanIngredients(week){
+  const proteins=new Set(),carbs=new Set(),vegs=new Set();
+  week.forEach(day=>day.items.forEach(it=>{
+    if(it.shake)return;
+    const d=(it.desc||'').toLowerCase();
+    ['chicken breast','chicken thigh','beef mince','lean beef','beef strips','pork','salmon','tuna','cod','sea bass','turkey','lamb','steak','pork loin','pork tenderloin','smoked salmon'].forEach(p=>{if(d.includes(p))proteins.add(p);});
+    ['white rice','basmati rice','brown rice','pasta','whole grain pasta','potato','sweet potato','quinoa','couscous','lentils','cannellini beans','chickpeas','kidney beans'].forEach(c=>{if(d.includes(c))carbs.add(c);});
+    ['broccoli','spinach','kale','courgette','peppers','carrots','asparagus','green beans','peas','cherry tomatoes','mushroom','cucumber','avocado'].forEach(v=>{if(d.includes(v))vegs.add(v);});
+  }));
+  return{proteins:[...proteins],carbs:[...carbs],vegetables:[...vegs]};
+}
+
+function computePlanDiff(oldW,newW){
+  const pick=(w,label,idx)=>w[idx]?.items.find(it=>it.label===label)?.name||'';
+  return{
+    dinners:newW.filter((_,i)=>pick(newW,'Dinner',i)!==pick(oldW,'Dinner',i)).length,
+    lunches:newW.filter((_,i)=>pick(newW,'Lunch',i)!==pick(oldW,'Lunch',i)).length,
+    breakfasts:newW.filter((_,i)=>(newW[i]?.items[0]?.name||'')!==(oldW[i]?.items[0]?.name||'')).length
+  };
+}
+
+async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl,progressOffset){
+  const TRAIN=[0,1,3,4,5];
+  const dnames=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const week=[];
+  let usedCarbs=[],usedDinners=[],omega3=0,iron=0;
+  const totalSteps=totalWeeks*7;
+  for(let d=0;d<7;d++){
+    const isTr=TRAIN.includes(d);
+    updateGenProgress(progressOffset+d+1,totalSteps,`Week ${weekNum} · ${dnames[d]}`,`Day ${progressOffset+d+1} of ${totalSteps}…`);
+    const tKcalDay=isTr?tKcal+100:Math.round(tKcal*0.97);
+    const tCarbs=isTr?Math.round(tKcalDay*0.42/4):Math.round(tKcalDay*0.36/4);
+    let dayData=null,lastErr=null;
+    for(let attempt=0;attempt<2&&!dayData;attempt++){
+      try{
+        const raw=await planCallClaude(buildDayPrompt(d,isTr,tKcalDay,tProtein,tCarbs,usedCarbs,usedDinners,omega3,iron,excl,extraExcl,attempt>0?lastErr:null));
+        const match=raw.match(/\{[\s\S]*\}/);
+        if(!match)throw new Error('No JSON in response');
+        const parsed=JSON.parse(match[0]);
+        const err=validatePlanDay(parsed,tProtein,excl);
+        if(err){lastErr=err;}else{dayData=parsed;}
+      }catch(e){lastErr=e.message;}
+    }
+    if(!dayData){dayData={...embeddedMeals[Math.min(weekNum-1,1)][d]};}
+    const allDesc=dayData.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
+    ['white rice','basmati rice','brown rice','pasta','potato','sweet potato','quinoa','couscous','lentils'].forEach(c=>{if(allDesc.includes(c)&&!usedCarbs.includes(c))usedCarbs.push(c);});
+    const din=dayData.items.find(it=>it.label==='Dinner');if(din)usedDinners.push(din.name);
+    if(/salmon|sardine|mackerel/.test(allDesc))omega3++;
+    if(/beef|lamb|lentil/.test(allDesc))iron++;
+    week.push(dayData);
+  }
+  return week;
+}
+
+async function startPlanGeneration(){
+  if(planGenerating)return;
+  planGenerating=true;
+  const btn=document.getElementById('plan-gen-btn');
+  btn.disabled=true;
+  document.getElementById('plan-gen-spin').style.display='inline-block';
+  document.getElementById('plan-gen-text').textContent='Generating…';
+  document.getElementById('plan-gen-progress').style.display='block';
+  const excl=[...document.querySelectorAll('.excl-list-wrap input[type=checkbox]:checked')].map(cb=>cb.value);
+  const extraExcl=(document.getElementById('plan-extra-excl')?.value||'').trim();
+  const genWeeks=window._planWeeks||1;
+  const g=getGoals();
+  const gainRate=g.weeklyGain||0.25;
+  const tKcal=Math.round(gainRate*7700/7+2300);
+  const tProtein=150;
+  try{
+    const week1=await generatePlanWeek(1,genWeeks,tKcal,tProtein,excl,extraExcl,0);
+    let week2=week1;
+    if(genWeeks===2){
+      const w1Dinners=week1.map(d=>d.items.find(it=>it.label==='Dinner')?.name||'').filter(Boolean);
+      week2=await generatePlanWeek(2,genWeeks,tKcal,tProtein,[...excl,...w1Dinners],extraExcl,7);
+    }
+    const prevRaw=localStorage.getItem('gp_meals_w1');
+    const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
+    localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
+    localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
+    mealMatrix=[week1,week2];
+    localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
+    localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
+    closePlannerSheet();
+    go('plan');
+  }catch(err){
+    alert('Generation failed: '+err.message+'\nEnsure ANTHROPIC_API_KEY is set in Netlify environment variables.');
+    btn.disabled=false;
+    document.getElementById('plan-gen-spin').style.display='none';
+    document.getElementById('plan-gen-text').textContent='✨ Generate';
+    document.getElementById('plan-gen-progress').style.display='none';
+  }finally{planGenerating=false;}
 }
 
 // init
