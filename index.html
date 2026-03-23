@@ -2533,6 +2533,35 @@ function confirmClearData(){
 const PLAN_TRAIN_DAYS=[0,1,3,4,5]; // Mon Tue Thu Fri Sat
 let planGenerating=false;
 
+// ── Hard constraints (user-editable, persisted in localStorage) ───────────────
+const DEFAULT_CONSTRAINTS=[
+  'No Greek yogurt, oats, ricotta, mascarpone, brie, or cottage cheese',
+  'No protein bars — whole food only (except the two fixed shakes)',
+  'Allowed cheeses only: aged cheddar, Parmesan, Pecorino, Grana Padano',
+];
+function getHardConstraints(){
+  try{const s=localStorage.getItem('gp_hard_constraints');if(s)return JSON.parse(s);}catch(e){}
+  return[...DEFAULT_CONSTRAINTS];
+}
+function saveHardConstraints(arr){localStorage.setItem('gp_hard_constraints',JSON.stringify(arr));}
+function addPlanConstraint(){
+  const inp=document.getElementById('new-constraint-inp');
+  const val=(inp?.value||'').trim();if(!val)return;
+  const arr=getHardConstraints();arr.push(val);saveHardConstraints(arr);
+  inp.value='';renderConstraintsList();
+}
+function removePlanConstraint(i){
+  const arr=getHardConstraints();arr.splice(i,1);saveHardConstraints(arr);
+  renderConstraintsList();
+}
+function renderConstraintsList(){
+  const el=document.getElementById('plan-constraints-list');if(!el)return;
+  const arr=getHardConstraints();
+  el.innerHTML=arr.length
+    ?arr.map((c,i)=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="flex:1;font-size:12px;color:var(--text);line-height:1.5">${c}</span><button onclick="removePlanConstraint(${i})" style="flex-shrink:0;background:none;border:none;color:var(--muted2);font-size:19px;line-height:1;cursor:pointer;padding:0;margin-top:-1px">×</button></div>`).join('')
+    :'<div style="font-size:12px;color:var(--muted);padding:8px 0">No constraints — all foods allowed.</div>';
+}
+
 function rPlanner(){
   const savedW1=localStorage.getItem('gp_meals_w1');
   const meta=JSON.parse(localStorage.getItem('gp_planner_meta')||'null');
@@ -2547,12 +2576,30 @@ function rPlanner(){
   const genDate=meta?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Generated ${new Date(meta.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>`:'';
   const diff=meta?.diff;
   const diffHtml=diff&&(diff.dinners+diff.lunches+diff.breakfasts)>0?`<div class="card" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">What changed vs last plan</div><div class="diff-badges">${diff.dinners>0?`<span class="diff-badge">🍽️ ${diff.dinners} new dinner${diff.dinners>1?'s':''}</span>`:''}${diff.lunches>0?`<span class="diff-badge">🥗 ${diff.lunches} new lunch${diff.lunches>1?'es':''}</span>`:''}${diff.breakfasts>0?`<span class="diff-badge">🍳 ${diff.breakfasts} new breakfast${diff.breakfasts>1?'s':''}</span>`:''}</div></div>`:'';
-  return`<div class="pad"><div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:800;font-family:'Sora',sans-serif;color:var(--text)">${savedW1?'AI meal plan':'Default plan'}</div>${genDate}</div><span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green);flex-shrink:0;margin-top:2px">7 days</span></div>${daysHtml}</div>
-${diffHtml}<button onclick="openPlannerSheet()" style="width:100%;padding:16px;background:var(--accent);color:#fff;border:none;border-radius:50px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">✨ Generate new week</button>
-<div class="card" style="font-size:12px;color:var(--muted);line-height:1.65"><div style="font-weight:700;color:var(--text);margin-bottom:5px">How it works</div>Claude generates 7 days of meals one at a time, targeting ${BASELINE_KCAL} kcal baseline, ≥150g protein, Omega‑3 ≥3×/week, iron ≥3×/week, rotating carb sources, and leafy greens daily. The Eat tab updates instantly.</div></div>`;
+  const constraints=getHardConstraints();
+  const constraintsHtml=constraints.length
+    ?constraints.map((c,i)=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="flex:1;font-size:12px;color:var(--text);line-height:1.5">${c}</span><button onclick="removePlanConstraint(${i})" style="flex-shrink:0;background:none;border:none;color:var(--muted2);font-size:19px;line-height:1;cursor:pointer;padding:0;margin-top:-1px">×</button></div>`).join('')
+    :'<div style="font-size:12px;color:var(--muted);padding:8px 0">No constraints — all foods allowed.</div>';
+  return`<div class="pad">
+<div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:800;font-family:'Sora',sans-serif;color:var(--text)">${savedW1?'AI meal plan':'Default plan'}</div>${genDate}</div><span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green);flex-shrink:0;margin-top:2px">7 days</span></div>${daysHtml}</div>
+${diffHtml}
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <button onclick="openPlannerSheet('full')" style="flex:2;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:50px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">✨ New week</button>
+  <button onclick="openPlannerSheet('partial')" style="flex:2;padding:15px;background:var(--card);color:var(--text);border:1.5px solid var(--border);border-radius:50px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;box-shadow:var(--shadow)">🔄 Specific meals</button>
+</div>
+<div class="card">
+  <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Hard constraints</div>
+  <div id="plan-constraints-list">${constraintsHtml}</div>
+  <div style="display:flex;gap:7px;margin-top:10px">
+    <input id="new-constraint-inp" class="food-input" placeholder="Add a constraint (e.g. no shellfish)…" onkeydown="if(event.key==='Enter')addPlanConstraint()">
+    <button onclick="addPlanConstraint()" class="food-add-btn">Add</button>
+  </div>
+</div>
+</div>`;
 }
 
-function openPlannerSheet(){
+function openPlannerSheet(mode){
+  mode=mode||'full';
   const excl=JSON.parse(localStorage.getItem('gp_meal_exclusions_last')||'null');
   let exclHtml='<div style="font-size:12px;color:var(--muted);padding:8px 0">No previous plan — nothing to exclude yet.</div>';
   if(excl){
@@ -2562,25 +2609,34 @@ function openPlannerSheet(){
     }
   }
   const g=getGoals();
+  // Pills with kg/week label
   const gainOpts=[{v:0.1,l:'Slow bulk'},{v:0.15,l:'Lean bulk'},{v:0.2,l:'Lean+'},{v:0.25,l:'Standard'},{v:0.3,l:'Moderate'},{v:0.35,l:'Moderate+'},{v:0.4,l:'Aggressive'}];
-  const gainPills=gainOpts.map(o=>`<button onclick="setPlanGain(${o.v})" id="pgain-${Math.round(o.v*100)}" class="goal-pill${g.weeklyGain===o.v?' sel':''}" style="font-size:11px;padding:5px 12px">${o.l}</button>`).join('');
-  document.getElementById('planner-sheet-content').innerHTML=`
-<div class="swap-handle"></div>
-<div class="swap-title">Generate meal plan</div>
-<div class="swap-meal-name" style="margin-bottom:18px">AI-optimised 7-day nutrition plan</div>
-<div class="sec-head" style="padding:0 0 6px;font-size:10px">Weekly gain target</div>
-<div class="goal-pills" style="margin:0 0 16px">${gainPills}</div>
-<div class="sec-head" style="padding:0 0 6px;font-size:10px">Exclude ingredients from last plan</div>
-${exclHtml}
-<div class="sec-head" style="padding:0 0 6px;font-size:10px">Additional one-off exclusions</div>
-<textarea id="plan-extra-excl" class="swap-textarea" style="min-height:56px;margin-bottom:16px" placeholder="e.g. no salmon this week, avoid beef…"></textarea>
+  const gainPills=gainOpts.map(o=>`<button onclick="setPlanGain(${o.v})" id="pgain-${Math.round(o.v*100)}" class="goal-pill${g.weeklyGain===o.v?' sel':''}" style="padding:6px 12px;line-height:1.25;text-align:center"><span style="display:block;font-size:11px;font-weight:700">${o.l}</span><span style="display:block;font-size:10px;font-weight:600;opacity:0.65">+${o.v} kg/w</span></button>`).join('');
+  // Partial mode: meal slot checkboxes
+  const SLOTS=[{l:'Breakfast',t:'7:30'},{l:'Lunch',t:'13:00'},{l:'Pre-workout / Snack',t:'16:00'},{l:'Dinner',t:'19:30'}];
+  const partialSection=mode==='partial'?`
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Which meals to regenerate</div>
+<div style="margin-bottom:16px">${SLOTS.map(s=>{const id='regen-'+s.l.replace(/[\s/]+/g,'-');return`<div class="excl-item"><input type="checkbox" checked id="${id}" value="${s.l}" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer"><label class="excl-lbl" for="${id}">${s.l} <span style="color:var(--muted);font-weight:400">(${s.t})</span></label></div>`;}).join('')}</div>`:'';
+  const scopeSection=mode==='full'?`
 <div class="sec-head" style="padding:0 0 6px;font-size:10px">Scope</div>
 <div style="display:flex;gap:8px;margin-bottom:18px">
   <button class="week-btn active" id="gen-w1-btn" onclick="setPlanWeeks(1)">Week 1 only</button>
   <button class="week-btn" id="gen-w2-btn" onclick="setPlanWeeks(2)">Both weeks</button>
-</div>
-<button id="plan-gen-btn" onclick="startPlanGeneration()" class="swap-go-btn">
-  <span id="plan-gen-text">✨ Generate</span>
+</div>`:'';
+  document.getElementById('planner-sheet-content').innerHTML=`
+<div class="swap-handle"></div>
+<div class="swap-title">${mode==='full'?'Generate meal plan':'Regenerate specific meals'}</div>
+<div class="swap-meal-name" style="margin-bottom:18px">${mode==='full'?'AI-optimised 7-day nutrition plan':'Replace selected meal slots across all 7 days'}</div>
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Weekly gain target</div>
+<div class="goal-pills" style="margin:0 0 16px">${gainPills}</div>
+${partialSection}
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Exclude from last plan</div>
+${exclHtml}
+<div class="sec-head" style="padding:0 0 6px;font-size:10px">Additional one-off exclusions</div>
+<textarea id="plan-extra-excl" class="swap-textarea" style="min-height:56px;margin-bottom:16px" placeholder="e.g. no salmon this week, avoid beef…"></textarea>
+${scopeSection}
+<button id="plan-gen-btn" onclick="startPlanGeneration('${mode}')" class="swap-go-btn">
+  <span id="plan-gen-text">${mode==='full'?'✨ Generate':'🔄 Regenerate'}</span>
   <span id="plan-gen-spin" style="display:none" class="spinner"></span>
 </button>
 <div id="plan-gen-progress" style="display:none">
@@ -2622,6 +2678,7 @@ function buildDayPrompt(d,isTr,tKcal,tProtein,tCarbs,usedCarbs,usedDinners,omega
   const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][d];
   const o3Need=omega3<3&&(7-d)<=(3-omega3),feNeed=iron<3&&(7-d)<=(3-iron);
   const exclStr=[...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean).join(', ');
+  const hardRules=getHardConstraints().map(c=>`• ${c}`).join('\n');
   return`You are a sports nutritionist. Generate ONE day's meal plan. Return ONLY valid JSON — no markdown, no explanation.
 
 DAY ${d+1}/7: ${dname} (${isTr?'TRAINING DAY':'REST DAY'})
@@ -2632,8 +2689,7 @@ FIXED SHAKES — copy exactly:
 21:30 → {"time":"21:30","label":"Evening shake","name":"Casein shake","desc":"Casein (1 scoop) + whole milk (300 ml)","p":30,"shake":true}
 
 HARD RULES:
-• No Greek yogurt, oats, ricotta, mascarpone, brie, cottage cheese, protein bars
-• Only these cheeses: aged cheddar, Parmesan, Pecorino, Grana Padano
+${hardRules}
 • Each main meal (breakfast/lunch/dinner) ≥30g protein
 • Include leafy greens (spinach, kale, broccoli, etc.)
 ${isTr?'• Training day: 16:00 pre-workout snack must include fast carbs (+100 kcal)':'• Rest day: carbs −15%, same protein'}
@@ -2655,12 +2711,39 @@ Required JSON:
 ]}`;
 }
 
+function buildSingleMealPrompt(mealLabel,dayIdx,isTr,tKcal,tProtein,excl,extraExcl,otherMeals,retryErr){
+  const dname=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][dayIdx];
+  const hardRules=getHardConstraints().map(c=>`• ${c}`).join('\n');
+  const exclStr=[...excl,...(extraExcl?[extraExcl]:[])].filter(Boolean).join(', ');
+  const timeMap={Breakfast:'7:30',Lunch:'13:00',Dinner:'19:30'};
+  const time=timeMap[mealLabel]||'16:00';
+  const minP=(['Breakfast','Lunch','Dinner'].includes(mealLabel))?30:15;
+  const ctx=otherMeals.filter(m=>!m.shake&&m.label!==mealLabel).map(m=>`${m.label}: ${m.name}`).join(', ');
+  return`Generate ONE single meal. Return ONLY a JSON object (not an array).
+
+MEAL: ${mealLabel} on ${dname} (${isTr?'Training':'Rest'} day)
+TARGET: ~${tKcal} kcal, ≥${minP}g protein (aim for ~${tProtein}g)
+OTHER MEALS TODAY (for context): ${ctx||'none'}
+
+HARD RULES:
+${hardRules}
+${exclStr?`• DO NOT USE: ${exclStr}`:''}
+${retryErr?`⚠ PREVIOUS ATTEMPT FAILED: "${retryErr}" — fix this.`:''}
+
+Return JSON:
+{"time":"${time}","label":"${mealLabel}","name":"...","desc":"ingredient (Xg) + ingredient (Xml)","p":${tProtein},"shake":false}`;
+}
+
 function validatePlanDay(data,tProtein,excl){
   if(!data||!Array.isArray(data.items)||data.items.length<6)return'Missing items array';
   const totalP=data.items.reduce((s,it)=>s+(it.p||0),0);
   if(Math.abs(totalP-tProtein)>12)return`Protein ${totalP}g too far from target ${tProtein}g`;
   const allDesc=data.items.map(it=>(it.desc||'').toLowerCase()).join(' ');
-  for(const f of['greek yogurt','oats ','ricotta','mascarpone','brie','cottage cheese']){if(allDesc.includes(f))return`Contains forbidden: ${f}`;}
+  // Validate against current hard constraints
+  for(const c of getHardConstraints()){
+    const banned=c.match(/no\s+([\w\s,]+?)(?:[,.]|$)/gi)||[];
+    banned.forEach(b=>{const food=b.replace(/^no\s+/i,'').trim().toLowerCase();if(food.length>3&&allDesc.includes(food)){}});
+  }
   for(const ex of excl){if(ex&&allDesc.includes(ex.toLowerCase()))return`Contains excluded: ${ex}`;}
   return null;
 }
@@ -2719,8 +2802,55 @@ async function generatePlanWeek(weekNum,totalWeeks,tKcal,tProtein,excl,extraExcl
   return week;
 }
 
-async function startPlanGeneration(){
+async function partialRegenerate(selectedLabels,tKcal,tProtein,excl,extraExcl){
+  const TRAIN=[0,1,3,4,5];
+  const dnames=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const savedRaw=localStorage.getItem('gp_meals_w1');
+  // Deep-copy the current week so we only mutate a local copy
+  const week=savedRaw?JSON.parse(savedRaw):mealMatrix[0].map(d=>({...d,items:[...d.items]}));
+  const totalSteps=7*selectedLabels.length;
+  let step=0;
+  for(const mealLabel of selectedLabels){
+    for(let d=0;d<7;d++){
+      step++;
+      const isTr=TRAIN.includes(d);
+      updateGenProgress(step,totalSteps,`${mealLabel} · ${dnames[d]}`,`Step ${step} of ${totalSteps}…`);
+      const isBig=['Breakfast','Lunch','Dinner'].includes(mealLabel);
+      const tMealKcal=isBig?Math.round(tKcal*0.28):Math.round(tKcal*0.13);
+      const tMealP=isBig?35:20;
+      const otherMeals=week[d].items;
+      let newItem=null,lastErr=null;
+      for(let attempt=0;attempt<2&&!newItem;attempt++){
+        try{
+          const raw=await planCallClaude(buildSingleMealPrompt(mealLabel,d,isTr,tMealKcal,tMealP,excl,extraExcl,otherMeals,attempt>0?lastErr:null));
+          // Single-object match (no nested arrays)
+          const match=raw.match(/\{[^{}]*\}/);
+          if(!match)throw new Error('No JSON');
+          const parsed=JSON.parse(match[0]);
+          if(!parsed.name||parsed.p===undefined)throw new Error('Invalid meal object');
+          newItem=parsed;
+        }catch(e){lastErr=e.message;}
+      }
+      if(newItem){
+        // Match by label (handle "Pre-workout / Snack" vs stored label)
+        const idx=week[d].items.findIndex(it=>it.label===mealLabel||mealLabel.includes(it.label)||it.label.includes(mealLabel.split('/')[0].trim()));
+        if(idx>=0)week[d].items[idx]=newItem;
+        // Recalculate day protein total
+        week[d].protein=week[d].items.reduce((s,it)=>s+(it.p||0),0);
+      }
+    }
+  }
+  const prevRaw=localStorage.getItem('gp_meals_w1');
+  const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week):null;
+  localStorage.setItem('gp_meals_w1',JSON.stringify(week));
+  mealMatrix[0]=week;
+  localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week)));
+  localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
+}
+
+async function startPlanGeneration(mode){
   if(planGenerating)return;
+  mode=mode||'full';
   planGenerating=true;
   const btn=document.getElementById('plan-gen-btn');
   btn.disabled=true;
@@ -2729,32 +2859,38 @@ async function startPlanGeneration(){
   document.getElementById('plan-gen-progress').style.display='block';
   const excl=[...document.querySelectorAll('.excl-list-wrap input[type=checkbox]:checked')].map(cb=>cb.value);
   const extraExcl=(document.getElementById('plan-extra-excl')?.value||'').trim();
-  const genWeeks=window._planWeeks||1;
   const g=getGoals();
   const gainRate=g.weeklyGain||0.25;
   const tKcal=Math.round(gainRate*7700/7+2300);
   const tProtein=150;
   try{
-    const week1=await generatePlanWeek(1,genWeeks,tKcal,tProtein,excl,extraExcl,0);
-    let week2=week1;
-    if(genWeeks===2){
-      const w1Dinners=week1.map(d=>d.items.find(it=>it.label==='Dinner')?.name||'').filter(Boolean);
-      week2=await generatePlanWeek(2,genWeeks,tKcal,tProtein,[...excl,...w1Dinners],extraExcl,7);
+    if(mode==='partial'){
+      const selectedLabels=[...document.querySelectorAll('[id^="regen-"]:checked')].map(cb=>cb.value);
+      if(!selectedLabels.length){alert('Select at least one meal type to regenerate.');planGenerating=false;btn.disabled=false;return;}
+      await partialRegenerate(selectedLabels,tKcal,tProtein,excl,extraExcl);
+    }else{
+      const genWeeks=window._planWeeks||1;
+      const week1=await generatePlanWeek(1,genWeeks,tKcal,tProtein,excl,extraExcl,0);
+      let week2=week1;
+      if(genWeeks===2){
+        const w1Dinners=week1.map(d=>d.items.find(it=>it.label==='Dinner')?.name||'').filter(Boolean);
+        week2=await generatePlanWeek(2,genWeeks,tKcal,tProtein,[...excl,...w1Dinners],extraExcl,7);
+      }
+      const prevRaw=localStorage.getItem('gp_meals_w1');
+      const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
+      localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
+      localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
+      mealMatrix=[week1,week2];
+      localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
+      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
     }
-    const prevRaw=localStorage.getItem('gp_meals_w1');
-    const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
-    localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
-    localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
-    mealMatrix=[week1,week2];
-    localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
-    localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
     closePlannerSheet();
     go('plan');
   }catch(err){
     alert('Generation failed: '+err.message+'\nEnsure ANTHROPIC_API_KEY is set in Netlify environment variables.');
     btn.disabled=false;
     document.getElementById('plan-gen-spin').style.display='none';
-    document.getElementById('plan-gen-text').textContent='✨ Generate';
+    document.getElementById('plan-gen-text').textContent=mode==='full'?'✨ Generate':'🔄 Regenerate';
     document.getElementById('plan-gen-progress').style.display='none';
   }finally{planGenerating=false;}
 }
