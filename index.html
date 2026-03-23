@@ -787,6 +787,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
     </button>
     <div id="swap-answer-wrap" style="display:none">
       <div class="swap-answer"><div class="swap-answer-lbl">✦ Suggested swap</div><div id="swap-answer-text"></div></div>
+      <button id="swap-apply-btn" style="width:100%;margin-top:8px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:50px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">✓ Apply to plan &amp; shopping</button>
     </div>
   </div>
 </div>
@@ -1243,7 +1244,7 @@ function loadMealMatrix(){
 }
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let tab='today',trainDay=todayIdx(),eatDay=todayIdx(),eatWeek=0,shopScope='both';
-let expanded={},swapPending={},swapResults={};
+let expanded={},swapPending={},swapResults={},plannerExp={};
 let restDur=60,restRem=60,restPaused=false,restIval=null;
 let gDayI=0,gExIdx=0,gSetIdx=0,gRestIval=null,gRestRem=60;
 
@@ -2114,17 +2115,45 @@ async function submitSwap(){
   document.getElementById('swap-btn-text').textContent='Thinking…';
   document.getElementById('swap-spinner').style.display='block';
   document.getElementById('swap-go').disabled=true;
+  const applyBtn=document.getElementById('swap-apply-btn');if(applyBtn)applyBtn.style.display='none';
   try{
     const t=getAdjustedTargets();
-    const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:220,messages:[{role:'user',content:`You help Giovanni (68 kg, 180 cm) on a ${t.gainLabel.toLowerCase()} plan (~${t.kcal} kcal/day, ~${t.protein}g protein target). He dislikes Greek yogurt, oats, soft cheese. Hard cheeses only (cheddar, Parmesan, Pecorino, Grana Padano). Current meal: ${m.label} at ${m.time} — "${m.name}": ${m.desc} (~${m.p}g protein). He says: "${msg}". Give a specific practical alternative hitting ~${m.p}g protein. 2–3 sentences, specific quantities, no greeting.`}]})});
-    const d=await r.json();const ans=(d.content&&d.content[0]&&d.content[0].text)||'Could not generate a suggestion.';
-    document.getElementById('swap-answer-text').textContent=ans;
+    const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,messages:[{role:'user',content:`You help Giovanni (68 kg, 180 cm) on a ${t.gainLabel.toLowerCase()} plan (~${t.kcal} kcal/day, ~${t.protein}g protein target). He dislikes Greek yogurt, oats, soft cheese. Hard cheeses only (cheddar, Parmesan, Pecorino, Grana Padano). Current meal: ${m.label} at ${m.time} — "${m.name}": ${m.desc} (~${m.p}g protein). He says: "${msg}". Give a specific practical swap hitting ~${m.p}g protein. Reply ONLY with valid JSON, no markdown, no extra text: {"name":"short meal name","desc":"ingredients with quantities","p":protein_grams,"kcal":calories,"note":"1 sentence why this swap works"}`}]})});
+    const d=await r.json();
+    const raw=(d.content&&d.content[0]&&d.content[0].text)||'{}';
+    let parsed=null;
+    try{const cleaned=raw.replace(/```json|```/g,'').trim();const match=cleaned.match(/\{[\s\S]*\}/);parsed=match?JSON.parse(match[0]):JSON.parse(cleaned);}catch(e){parsed=null;}
+    if(parsed&&parsed.name&&parsed.p!==undefined){
+      document.getElementById('swap-answer-text').innerHTML=`<strong style="font-size:13px">${parsed.name}</strong><br><span style="color:var(--muted);font-size:12px;line-height:1.5;display:block;margin-top:3px">${parsed.desc}</span><span style="font-size:11px;color:var(--green);font-weight:700;margin-top:5px;display:block">${parsed.p}g protein · ${parsed.kcal||'~'+Math.round(m.p*4+100)} kcal</span>${parsed.note?`<span style="display:block;margin-top:6px;font-size:12px;color:var(--muted);font-style:italic">${parsed.note}</span>`:''}`;
+      swapResults[`${wk}-${di}-${mi}`]={json:parsed};
+      if(applyBtn){applyBtn.style.display='block';applyBtn.onclick=()=>applySwap(wk,di,mi);}
+    }else{
+      document.getElementById('swap-answer-text').textContent=raw||'Could not generate a suggestion.';
+      swapResults[`${wk}-${di}-${mi}`]={text:raw};
+      if(applyBtn)applyBtn.style.display='none';
+    }
     document.getElementById('swap-answer-wrap').style.display='block';
-    swapResults[`${wk}-${di}-${mi}`]=ans;
   }catch(e){document.getElementById('swap-answer-text').textContent='Connection error. Please try again.';document.getElementById('swap-answer-wrap').style.display='block';}
   document.getElementById('swap-btn-text').textContent='Try another';
   document.getElementById('swap-spinner').style.display='none';
   document.getElementById('swap-go').disabled=false;
+}
+function applySwap(wk,di,mi){
+  const key=`${wk}-${di}-${mi}`;
+  const result=swapResults[key];
+  if(!result||!result.json)return;
+  const json=result.json;
+  // Clone week from mealMatrix (or from embedded meals if not yet AI-generated)
+  let week=mealMatrix[wk]?mealMatrix[wk]:JSON.parse(JSON.stringify(embeddedMeals[wk]||embeddedMeals[0]));
+  const original=week[di].items[mi];
+  week[di].items[mi]={...original,name:json.name,desc:json.desc,p:json.p};
+  if(json.kcal&&original.kcal){const diff=json.kcal-(original.kcal||0);week[di].kcal=Math.round((week[di].kcal||0)+diff);}
+  week[di].protein=week[di].items.reduce((s,it)=>s+(it.p||0),0);
+  mealMatrix[wk]=week;
+  localStorage.setItem(`gp_meals_w${wk+1}`,JSON.stringify(week));
+  delete swapResults[key];
+  document.getElementById('swap-modal').classList.remove('show');
+  render();
 }
 
 // ── TRAINING LOG RENDERER ─────────────────────────────────────────────────────
@@ -2569,9 +2598,11 @@ function rPlanner(){
   const dlbls=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const daysHtml=w1.map((day,i)=>{
     const isTr=PLAN_TRAIN_DAYS.includes(i);
+    const isOpen=!!plannerExp[i];
     const lunch=day.items.find(it=>it.label==='Lunch')||day.items[2];
     const dinner=day.items.find(it=>it.label==='Dinner')||day.items[4];
-    return`<div class="plan-day-row"><div class="plan-dot" style="background:${isTr?'var(--green)':'var(--muted2)'}"></div><div class="plan-day-lbl">${dlbls[i]}</div><div class="plan-day-info"><div class="plan-day-title">${lunch?.name||'—'} · ${dinner?.name||'—'}</div><div class="plan-day-sub">${day.kcal} kcal · ${day.protein}g protein · ${isTr?'Training':'Rest'}</div></div></div>`;
+    const mealsDetail=isOpen?`<div style="padding:2px 0 10px 44px">${day.items.map(it=>`<div style="display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:10px;color:var(--muted);width:36px;flex-shrink:0;padding-top:2px">${it.time}</span><div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--text);line-height:1.35">${it.name}</div><div style="font-size:11px;color:var(--muted);margin-top:1px">${it.label}${it.shake?' · <span style="color:var(--blue,#0a84ff);font-weight:700">Shake</span>':''} · <span style="color:var(--green);font-weight:700">${it.p}g P</span></div></div></div>`).join('')}</div>`:'';
+    return`<div><div class="plan-day-row" style="cursor:pointer;${isOpen?'border-bottom:none':''}" onclick="plannerExp[${i}]=!plannerExp[${i}];render()"><div class="plan-dot" style="background:${isTr?'var(--green)':'var(--muted2)'}"></div><div class="plan-day-lbl">${dlbls[i]}</div><div class="plan-day-info"><div class="plan-day-title">${lunch?.name||'—'} · ${dinner?.name||'—'}</div><div class="plan-day-sub">${day.kcal} kcal · ${day.protein}g protein · ${isTr?'Training':'Rest'}</div></div><span style="font-size:13px;color:var(--muted);flex-shrink:0;display:inline-block;transition:transform .2s;transform:rotate(${isOpen?'180':'0'}deg);margin-top:2px">▾</span></div>${mealsDetail}</div>`;
   }).join('');
   const genDate=meta?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Generated ${new Date(meta.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>`:'';
   const diff=meta?.diff;
