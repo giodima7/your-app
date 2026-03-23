@@ -1,0 +1,81 @@
+{
+  "week": [
+    {
+      "day": "Day 1",
+      "meals": [
+        { "name": "Breakfast",  "time": "7:30",  "meal": "Scrambled eggs & toast",        "desc": "3 eggs + 2 whole grain toast + avocado half + whole milk (200ml)",                                               "calories": 550, "protein": 32 },
+        { "name": "Snack",      "time": "10:30", "meal": "Whey shake & banana",            "desc": "whey protein (1 scoop) + whole milk (300ml) + banana",                                                            "calories": 350, "protein": 35 },
+        { "name": "Lunch",      "time": "13:00", "meal": "Chicken & rice bowl",            "desc": "chicken breast (160g) + white rice (100g dry) + chickpeas (80g) + olive oil (1 tbsp) + cherry tomatoes + cucumber","calories": 650, "protein": 48 },
+        { "name": "Snack",      "time": "16:00", "meal": "Yogurt & peanut butter toast",   "desc": "Greek yogurt (150g) + whole grain bread (2 slices) + peanut butter (1 tbsp)",                                    "calories": 380, "protein": 22 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Beef mince & roasted veg",       "desc": "lean beef mince (150g) + potatoes (200g) + broccoli + carrots + olive oil (1 tbsp)",                             "calories": 580, "protein": 42 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    },
+    {
+      "day": "Day 2",
+      "meals": [
+        { "name": "Breakfast",  "time": "7:30",  "meal": "Oat porridge & eggs",            "desc": "oats (80g) + whole milk (300ml) + 2 eggs + banana + honey (1 tsp)",                                              "calories": 600, "protein": 30 },
+        { "name": "Snack",      "time": "10:30", "meal": "Whey shake & apple",             "desc": "whey protein (1 scoop) + whole milk (300ml) + apple",                                                             "calories": 330, "protein": 35 },
+        { "name": "Lunch",      "time": "13:00", "meal": "Salmon & basmati rice",          "desc": "salmon fillet (180g) + basmati rice (100g dry) + green beans + olive oil (1 tbsp) + lemon",                      "calories": 680, "protein": 46 },
+        { "name": "Snack",      "time": "16:00", "meal": "Greek yogurt & almonds",         "desc": "Greek yogurt (200g) + almonds (25g) + honey (1 tsp)",                                                             "calories": 300, "protein": 20 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Turkey breast & sweet potato",   "desc": "turkey breast (160g) + sweet potato (200g) + spinach + olive oil (1 tbsp)",                                      "calories": 580, "protein": 44 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    },
+    {
+      "day": "Day 3",
+      "meals": [
+        { "name": "Breakfast",  "time": "7:30",  "meal": "Veggie omelette & toast",        "desc": "4 eggs + diced peppers + mushrooms + 2 whole grain toast + whole milk (200ml)",                                   "calories": 560, "protein": 36 },
+        { "name": "Snack",      "time": "10:30", "meal": "Whey shake & banana",            "desc": "whey protein (1 scoop) + whole milk (300ml) + banana",                                                            "calories": 350, "protein": 35 },
+        { "name": "Lunch",      "time": "13:00", "meal": "Chicken & whole grain pasta",    "desc": "chicken breast (160g) + whole grain pasta (100g dry) + tomato passata (150ml) + olive oil (1 tbsp) + Parmesan (20g)","calories": 680, "protein": 50 },
+        { "name": "Snack",      "time": "16:00", "meal": "Hummus & veg",                   "desc": "hummus (100g) + whole grain bread (2 slices) + carrots + cucumber",                                               "calories": 350, "protein": 14 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Baked cod & potatoes",           "desc": "cod fillet (200g) + potatoes (200g) + broccoli + olive oil (1 tbsp) + lemon",                                    "calories": 540, "protein": 44 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    },
+    {
+      "day": "Day 4",
+      "meals": [
+        { "name": "Breakfast",  "time": "7:30",  "meal": "Protein smoothie",               "desc": "whey protein (1 scoop) + oats (60g) + whole milk (300ml) + frozen berries (100g) + peanut butter (1 tbsp)",     "calories": 580, "protein": 40 },
+        { "name": "Snack",      "time": "10:30", "meal": "Yogurt & mixed nuts",            "desc": "Greek yogurt (150g) + walnuts (20g) + almonds (15g) + honey (1 tsp)",                                            "calories": 310, "protein": 20 },
+        { "name": "Lunch",      "time": "13:00", "meal": "Beef & quinoa bowl",             "desc": "lean beef mince (150g) + quinoa (80g dry) + roasted peppers + courgette + olive oil (1 tbsp)",                   "calories": 660, "protein": 50 },
+        { "name": "Snack",      "time": "16:00", "meal": "Apple & peanut butter",          "desc": "apple + peanut butter (2 tbsp) + whole grain rice cakes (4)",                                                    "calories": 320, "protein": 10 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Chicken thighs & brown rice",    "desc": "chicken thighs (200g) + brown rice (100g dry) + roasted courgette + peppers + olive oil (1 tbsp)",               "calories": 670, "protein": 46 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    },
+    {
+      "day": "Day 5",
+      "meals": [
+        { "name": "Breakfast",  "time": "7:30",  "meal": "Egg & avocado toast",            "desc": "3 eggs + 2 whole grain toast + avocado half + whole milk (200ml)",                                               "calories": 550, "protein": 30 },
+        { "name": "Snack",      "time": "10:30", "meal": "Whey shake & apple",             "desc": "whey protein (1 scoop) + whole milk (300ml) + apple",                                                             "calories": 330, "protein": 35 },
+        { "name": "Lunch",      "time": "13:00", "meal": "Tuna & chickpea salad",          "desc": "canned tuna (160g drained) + chickpeas (100g) + tomato + cucumber + olive oil (1 tbsp) + lemon",                 "calories": 580, "protein": 46 },
+        { "name": "Snack",      "time": "16:00", "meal": "Greek yogurt & granola",         "desc": "Greek yogurt (200g) + granola (40g) + honey (1 tsp)",                                                             "calories": 370, "protein": 20 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Baked salmon & quinoa",          "desc": "salmon fillet (200g) + quinoa (80g dry) + spinach + cherry tomatoes + olive oil (1 tbsp)",                       "calories": 660, "protein": 46 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    },
+    {
+      "day": "Day 6",
+      "meals": [
+        { "name": "Breakfast",  "time": "8:30",  "meal": "Protein pancakes",               "desc": "3 eggs + whey protein (1 scoop) + plain flour (80g) + banana + honey (1 tbsp) + whole milk (100ml)",            "calories": 620, "protein": 42 },
+        { "name": "Snack",      "time": "11:00", "meal": "Boiled eggs & avocado toast",    "desc": "3 eggs + 2 whole grain toast + avocado half",                                                                     "calories": 380, "protein": 24 },
+        { "name": "Lunch",      "time": "13:30", "meal": "Beef stir-fry & rice",           "desc": "lean beef strips (150g) + white rice (100g dry) + courgette + peppers + soy sauce (1 tbsp) + olive oil (1 tbsp)","calories": 650, "protein": 48 },
+        { "name": "Snack",      "time": "16:30", "meal": "Cottage cheese & honey",         "desc": "cottage cheese (200g) + honey (1 tsp) + walnuts (20g)",                                                          "calories": 280, "protein": 26 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Chicken & lentils",              "desc": "chicken breast (160g) + red lentils (80g dry) + carrots + onion + olive oil (1 tbsp)",                           "calories": 600, "protein": 46 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    },
+    {
+      "day": "Day 7",
+      "meals": [
+        { "name": "Breakfast",  "time": "9:00",  "meal": "Full egg breakfast",             "desc": "3 eggs + 2 whole grain toast + grilled tomato + mushrooms + whole milk (200ml)",                                  "calories": 520, "protein": 30 },
+        { "name": "Snack",      "time": "11:30", "meal": "Whey shake & fruit",             "desc": "whey protein (1 scoop) + whole milk (300ml) + apple",                                                             "calories": 330, "protein": 34 },
+        { "name": "Lunch",      "time": "14:00", "meal": "Chicken & lentil soup",          "desc": "chicken breast (150g) + red lentils (80g dry) + carrots + celery + onion + tomato + whole grain bread (2 slices)","calories": 620, "protein": 44 },
+        { "name": "Snack",      "time": "17:00", "meal": "Cheese & fruit",                 "desc": "aged cheddar (45g) + apple + walnuts (20g)",                                                                     "calories": 310, "protein": 14 },
+        { "name": "Dinner",     "time": "19:30", "meal": "Roast chicken & veg",            "desc": "roast chicken leg (220g) + roasted potatoes (200g) + carrots + broccoli + olive oil (1 tbsp)",                   "calories": 660, "protein": 46 },
+        { "name": "Evening",    "time": "21:30", "meal": "Casein shake",                   "desc": "casein protein (1 scoop) + whole milk (300ml)",                                                                   "calories": 220, "protein": 30 }
+      ]
+    }
+  ]
+}
