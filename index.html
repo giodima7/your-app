@@ -2717,10 +2717,10 @@ const SPOON_HARD_EXCL='greek yogurt,oats,ricotta,mascarpone,brie,cottage cheese,
 async function spoonacularFetch(endpoint,params){
   const url='https://api.spoonacular.com'+endpoint+'?'+new URLSearchParams(params).toString();
   const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json','x-target-url':url},body:'{}'});
+  const data=await r.json().catch(()=>({}));
   if(r.status===402){const e=new Error('Spoonacular daily limit reached (150 calls/day). Try again tomorrow or upgrade your key.');e.code='DAILY_LIMIT';throw e;}
-  if(!r.ok)throw new Error('Spoonacular API error '+r.status);
-  const data=await r.json();
-  if(data.error)throw new Error(data.error);
+  if(!r.ok){const msg=data.error||('API error '+r.status);const e=new Error(msg);e.spoonError=msg;throw e;}
+  if(data.error){const e=new Error(data.error);e.spoonError=data.error;throw e;}
   return data;
 }
 
@@ -2799,8 +2799,13 @@ async function generateMealPlan(genWeeks,userExcl,warnings){
   const week2=genWeeks===2?_buildWeekFromPools({b:bPool,l:lPool,d:dPool,s:sPool},w1Ids):week1;
   const allIds=[...new Set([...w1Ids,...(genWeeks===2?week2.flatMap(d=>d.items.filter(it=>it.spoonacularId).map(it=>it.spoonacularId)):w1Ids)])];
   localStorage.setItem('gp_last_recipe_ids',JSON.stringify(allIds));
+  // Deduplicate warnings — if all 4 pools failed with same message, collapse to one
+  const uniqueWarnings=[...new Set(warnings)];
+  warnings.length=0;warnings.push(...uniqueWarnings);
   updateGenProgress(5,5,'Done!','');
-  return{week1,week2};
+  // Track whether any real Spoonacular recipes were used
+  const spoonUsed=w1Ids.length>0;
+  return{week1,week2,spoonUsed};
 }
 
 // ── MEAL DATABASE ─────────────────────────────────────────────────────────────
@@ -3214,13 +3219,13 @@ async function startPlanGeneration(mode){
       const checkedExcl=[...document.querySelectorAll('.excl-list-wrap input[type=checkbox]:checked')].map(cb=>cb.value).join(',');
       const freeExcl=(document.getElementById('plan-extra-excl')?.value||'').trim();
       const userExcl=[checkedExcl,freeExcl].filter(Boolean).join(',');
-      const{week1,week2}=await generateMealPlan(genWeeks,userExcl,warnings);
+      const{week1,week2,spoonUsed}=await generateMealPlan(genWeeks,userExcl,warnings);
       const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
       localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
       localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
       mealMatrix=[week1,week2];
       localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
-      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,warnings,source:'spoonacular'}));
+      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,warnings,source:spoonUsed?'spoonacular':'db'}));
     }
     closePlannerSheet();
     go('plan');
