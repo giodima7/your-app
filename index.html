@@ -2604,7 +2604,8 @@ function rPlanner(){
     const mealsDetail=isOpen?`<div style="padding:2px 0 10px 44px">${day.items.map(it=>`<div style="display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:10px;color:var(--muted);width:36px;flex-shrink:0;padding-top:2px">${it.time}</span><div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--text);line-height:1.35">${it.name}</div><div style="font-size:11px;color:var(--muted);margin-top:1px">${it.label}${it.shake?' · <span style="color:var(--blue,#0a84ff);font-weight:700">Shake</span>':''} · <span style="color:var(--green);font-weight:700">${it.p}g P</span></div></div></div>`).join('')}</div>`:'';
     return`<div><div class="plan-day-row" style="cursor:pointer;${isOpen?'border-bottom:none':''}" onclick="plannerExp[${i}]=!plannerExp[${i}];render()"><div class="plan-dot" style="background:${isTr?'var(--green)':'var(--muted2)'}"></div><div class="plan-day-lbl">${dlbls[i]}</div><div class="plan-day-info"><div class="plan-day-title">${lunch?.name||'—'} · ${dinner?.name||'—'}</div><div class="plan-day-sub">${day.kcal} kcal · ${day.protein}g protein · ${isTr?'Training':'Rest'}</div></div><span style="font-size:13px;color:var(--muted);flex-shrink:0;display:inline-block;transition:transform .2s;transform:rotate(${isOpen?'180':'0'}deg);margin-top:2px">▾</span></div>${mealsDetail}</div>`;
   }).join('');
-  const genDate=meta?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Generated ${new Date(meta.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>`:'';
+  const sourceTag=meta?.source==='spoonacular'?` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f4fd;color:#0a6fa8">Spoonacular</span>`:meta?.source==='db'?` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--green-light);color:var(--green)">Built-in</span>`:'';
+  const genDate=meta?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Generated ${new Date(meta.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}${sourceTag}</div>`:'';
   const fallbackWarning=(meta&&meta.fallbackDays>0)?`<div style="background:#fff8e1;border:1.5px solid #f9a825;border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:flex-start"><span style="font-size:18px;flex-shrink:0">⚠️</span><div><div style="font-size:12px;font-weight:700;color:#7a5c00;margin-bottom:2px">${meta.fallbackDays===7?'Generation failed — showing default plan':'Partial generation failure'}</div><div style="font-size:12px;color:#7a5c00;line-height:1.4">${meta.fallbackDays===7?'All 7 days fell back to the built-in template. This usually means the Anthropic API key is not set in Netlify, or the API returned an error. Check Netlify → Site settings → Environment variables.':''+meta.fallbackDays+' day'+(meta.fallbackDays>1?'s':'')+' could not be generated and used the default template. The rest of the plan is AI-generated.'}</div></div></div>`:'';
 
   const diff=meta?.diff;
@@ -2614,7 +2615,7 @@ function rPlanner(){
     ?constraints.map((c,i)=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="flex:1;font-size:12px;color:var(--text);line-height:1.5">${c}</span><button onclick="removePlanConstraint(${i})" style="flex-shrink:0;background:none;border:none;color:var(--muted2);font-size:19px;line-height:1;cursor:pointer;padding:0;margin-top:-1px">×</button></div>`).join('')
     :'<div style="font-size:12px;color:var(--muted);padding:8px 0">No constraints — all foods allowed.</div>';
   return`<div class="pad">
-<div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:800;font-family:'Sora',sans-serif;color:var(--text)">${savedW1?'AI meal plan':'Default plan'}</div>${genDate}</div><span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green);flex-shrink:0;margin-top:2px">7 days</span></div>${daysHtml}</div>
+<div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:800;font-family:'Sora',sans-serif;color:var(--text)">${meta?.source==='spoonacular'?'Spoonacular meal plan':savedW1?'Meal plan':'Default plan'}</div>${genDate}</div><span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--green-light);color:var(--green);flex-shrink:0;margin-top:2px">7 days</span></div>${daysHtml}</div>
 ${fallbackWarning}${diffHtml}
 <div style="display:flex;gap:8px;margin-bottom:12px">
   <button onclick="openPlannerSheet('full')" style="flex:2;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:50px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">✨ New week</button>
@@ -2659,15 +2660,26 @@ function openPlannerSheet(mode){
   document.getElementById('planner-sheet-content').innerHTML=`
 <div class="swap-handle"></div>
 <div class="swap-title">${mode==='full'?'Generate meal plan':'Regenerate specific meals'}</div>
-<div class="swap-meal-name" style="margin-bottom:18px">${mode==='full'?'AI-optimised 7-day nutrition plan':'Replace selected meal slots across all 7 days'}</div>
+<div class="swap-meal-name" style="margin-bottom:18px">${mode==='full'?'Real recipes from Spoonacular, matched to your targets':'Replace selected meal slots across all 7 days'}</div>
 <div class="sec-head" style="padding:0 0 6px;font-size:10px">Weekly gain target</div>
 <div class="goal-pills" style="margin:0 0 16px">${gainPills}</div>
 ${partialSection}
-<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:16px;padding:10px 12px;background:var(--elevated);border-radius:10px">Meals are picked from a curated database and filtered by your hard constraints above. Add constraints to exclude specific foods permanently.</div>
+${mode==='full'?`<div class="sec-head" style="padding:0 0 6px;font-size:10px">Exclude ingredients from this week</div>
+${exclHtml}
+<div class="sec-head" style="padding:10px 0 6px;font-size:10px">Extra exclusions (free text)</div>
+<input id="plan-extra-excl" class="food-input" style="margin-bottom:16px;width:100%;box-sizing:border-box" placeholder="e.g. no mushrooms, avoid beef…">
+`:''}
 ${scopeSection}
 <button id="plan-gen-btn" onclick="startPlanGeneration('${mode}')" class="swap-go-btn">
   ${mode==='full'?'✨ Generate new week':'🔄 Regenerate selected meals'}
-</button>`;
+</button>
+<div id="plan-gen-progress" style="display:none;margin-top:12px">
+  <div class="gen-box">
+    <div style="font-size:12px;font-weight:700;color:var(--text)" id="gen-prog-label">Preparing…</div>
+    <div class="gen-bar"><div class="gen-bar-fill" id="gen-bar-fill" style="width:0%"></div></div>
+    <div style="font-size:11px;color:var(--muted)" id="gen-prog-status"></div>
+  </div>
+</div>`;
   window._planWeeks=1;
   document.getElementById('planner-modal').classList.add('show');
 }
@@ -2696,6 +2708,99 @@ async function planCallClaude(prompt,systemMsg){
   const data=await r.json();
   if(!r.ok||data.error)throw new Error(data.error?.message||'API error '+r.status);
   return data.content[0].text.trim();
+}
+
+// ── SPOONACULAR INTEGRATION ───────────────────────────────────────────────────
+// Hard dietary constraints — always injected, never user-overridable
+const SPOON_HARD_EXCL='greek yogurt,oats,ricotta,mascarpone,brie,cottage cheese,quark';
+
+async function spoonacularFetch(endpoint,params){
+  const url='https://api.spoonacular.com'+endpoint+'?'+new URLSearchParams(params).toString();
+  const r=await fetch('/.netlify/functions/claude',{method:'POST',headers:{'Content-Type':'application/json','x-target-url':url},body:'{}'});
+  if(r.status===402){const e=new Error('Spoonacular daily limit reached (150 calls/day). Try again tomorrow or upgrade your key.');e.code='DAILY_LIMIT';throw e;}
+  if(!r.ok)throw new Error('Spoonacular API error '+r.status);
+  const data=await r.json();
+  if(data.error)throw new Error(data.error);
+  return data;
+}
+
+function _spoonNutrient(recipe,name){
+  return recipe.nutrition?.nutrients?.find(n=>n.name===name)?.amount||0;
+}
+function _spoonDesc(ingredients){
+  if(!ingredients?.length)return'';
+  const scored=ingredients.map(i=>({name:i.name,amt:i.measures?.metric?.amount||i.amount||0,unit:(i.measures?.metric?.unitShort||i.unit||'').toLowerCase()})).filter(i=>i.amt>0).sort((a,b)=>b.amt-a.amt).slice(0,5);
+  return scored.length?scored.map(i=>`${i.name} (${Math.round(i.amt)}${i.unit||'g'})`).join(' + '):ingredients.slice(0,4).map(i=>i.name).join(', ');
+}
+function _spoonPick(pool,usedIds,targetP){
+  const avail=pool.filter(r=>!usedIds.has(r.id));
+  const src=avail.length?avail:pool;
+  const sorted=src.slice().sort((a,b)=>Math.abs(_spoonNutrient(a,'Protein')-targetP)-Math.abs(_spoonNutrient(b,'Protein')-targetP));
+  const top=sorted.slice(0,Math.min(3,sorted.length));
+  return top[Math.floor(Math.random()*top.length)];
+}
+function _spoonToItem(recipe,time,label){
+  return{time,label,name:recipe.title,desc:_spoonDesc(recipe.extendedIngredients),p:Math.round(_spoonNutrient(recipe,'Protein')),c:Math.round(_spoonNutrient(recipe,'Carbohydrates')),fat:Math.round(_spoonNutrient(recipe,'Fat')),kcal:Math.round(_spoonNutrient(recipe,'Calories')),shake:false,spoonacularId:recipe.id};
+}
+
+async function _fetchPool(mealType,searchParams,userExcl,warnings){
+  const excl=[SPOON_HARD_EXCL,userExcl].filter(Boolean).join(',');
+  const base={type:mealType,number:20,addRecipeNutrition:true,addRecipeInformation:true,sort:'healthiness',excludeIngredients:excl,...searchParams};
+  try{
+    const data=await spoonacularFetch('/recipes/complexSearch',base);
+    if(data.results?.length)return data.results;
+    // 0 results with user exclusions — relax them, keep hard constraints
+    if(userExcl){
+      warnings.push(`Couldn't avoid all excluded ingredients for ${mealType} — using relaxed constraints.`);
+      const relaxed=await spoonacularFetch('/recipes/complexSearch',{...base,excludeIngredients:SPOON_HARD_EXCL});
+      if(relaxed.results?.length)return relaxed.results;
+    }
+    warnings.push(`No Spoonacular results for ${mealType} — using built-in database.`);
+    return null;
+  }catch(err){
+    if(err.code==='DAILY_LIMIT')throw err;
+    warnings.push(`Spoonacular unavailable for ${mealType} (${err.message}) — using built-in database.`);
+    return null;
+  }
+}
+
+function _buildWeekFromPools(pools,avoidIds){
+  const TRAIN=[0,1,3,4,5];
+  const usedIds=new Set(avoidIds||[]);
+  function pick(pool,dbCat,targetP,d){
+    if(pool?.length){const r=_spoonPick(pool,usedIds,targetP);if(r){usedIds.add(r.id);return{s:1,r};}}
+    const db=MEAL_DB[dbCat].filter(dbIsAllowed);return{s:0,r:db[d%Math.max(db.length,1)]};
+  }
+  function mkItem(p,time,label){return p.s?_spoonToItem(p.r,time,label):{time,label,name:p.r.name,desc:p.r.desc,p:p.r.p,kcal:p.r.kcal,shake:false};}
+  return Array.from({length:7},(_,d)=>{
+    const isTr=TRAIN.includes(d),items=[];
+    items.push(mkItem(pick(pools.b,'breakfasts',25,d),'7:30','Breakfast'));
+    items.push({..._SHAKE_AM});
+    items.push(mkItem(pick(pools.l,'lunches',35,d),'13:00','Lunch'));
+    if(isTr)items.push(mkItem(pick(pools.s,'snacks',20,d),'16:00','Pre-workout'));
+    items.push(mkItem(pick(pools.d,'dinners',40,d),'19:30','Dinner'));
+    items.push({..._SHAKE_PM});
+    return{kcal:Math.round(items.reduce((a,it)=>a+(it.kcal||0),0)),protein:Math.round(items.reduce((a,it)=>a+(it.p||0),0)),items};
+  });
+}
+
+async function generateMealPlan(genWeeks,userExcl,warnings){
+  updateGenProgress(0,5,'Fetching breakfast recipes…','');
+  const bPool=await _fetchPool('breakfast',{minProtein:25,maxCalories:600},userExcl,warnings);
+  updateGenProgress(1,5,'Fetching lunch recipes…','');
+  const lPool=await _fetchPool('main course',{minProtein:35,maxCalories:750},userExcl,warnings);
+  updateGenProgress(2,5,'Fetching dinner recipes…','');
+  const dPool=await _fetchPool('main course',{minProtein:40,maxCalories:800},userExcl,warnings);
+  updateGenProgress(3,5,'Fetching snack recipes…','');
+  const sPool=await _fetchPool('snack',{minProtein:20,maxCalories:400},userExcl,warnings);
+  updateGenProgress(4,5,'Building your plan…','');
+  const week1=_buildWeekFromPools({b:bPool,l:lPool,d:dPool,s:sPool},null);
+  const w1Ids=week1.flatMap(d=>d.items.filter(it=>it.spoonacularId).map(it=>it.spoonacularId));
+  const week2=genWeeks===2?_buildWeekFromPools({b:bPool,l:lPool,d:dPool,s:sPool},w1Ids):week1;
+  const allIds=[...new Set([...w1Ids,...(genWeeks===2?week2.flatMap(d=>d.items.filter(it=>it.spoonacularId).map(it=>it.spoonacularId)):w1Ids)])];
+  localStorage.setItem('gp_last_recipe_ids',JSON.stringify(allIds));
+  updateGenProgress(5,5,'Done!','');
+  return{week1,week2};
 }
 
 // ── MEAL DATABASE ─────────────────────────────────────────────────────────────
@@ -3085,32 +3190,60 @@ async function partialRegenerate(selectedLabels,tKcal,tProtein,excl,extraExcl){
   localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
 }
 
-function startPlanGeneration(mode){
+async function startPlanGeneration(mode){
   if(planGenerating)return;
   mode=mode||'full';
   planGenerating=true;
+  const btn=document.getElementById('plan-gen-btn');
+  const prog=document.getElementById('plan-gen-progress');
+  if(btn){btn.disabled=true;btn.textContent='Generating…';}
+  if(prog)prog.style.display='block';
   const prevRaw=localStorage.getItem('gp_meals_w1');
-  if(mode==='partial'){
-    const selectedLabels=[...document.querySelectorAll('[id^="regen-"]:checked')].map(cb=>cb.value);
-    if(!selectedLabels.length){planGenerating=false;alert('Select at least one meal type.');return;}
-    const week=generatePartialFromDB(selectedLabels);
-    const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week):null;
-    localStorage.setItem('gp_meals_w1',JSON.stringify(week));
-    mealMatrix[0]=week;
-    localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
-  }else{
-    const week1=generateWeekFromDB(null);
-    const week2=generateWeekFromDB(week1);
-    const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
-    localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
-    localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
-    mealMatrix=[week1,week2];
-    localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
-    localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff}));
-  }
-  planGenerating=false;
-  closePlannerSheet();
-  go('plan');
+  const warnings=[];
+  try{
+    if(mode==='partial'){
+      const selectedLabels=[...document.querySelectorAll('[id^="regen-"]:checked')].map(cb=>cb.value);
+      if(!selectedLabels.length){planGenerating=false;if(btn){btn.disabled=false;btn.textContent='🔄 Regenerate selected meals';}if(prog)prog.style.display='none';alert('Select at least one meal type.');return;}
+      const week=generatePartialFromDB(selectedLabels);
+      const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week):null;
+      localStorage.setItem('gp_meals_w1',JSON.stringify(week));
+      mealMatrix[0]=week;
+      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,source:'db'}));
+    }else{
+      const genWeeks=window._planWeeks||1;
+      const checkedExcl=[...document.querySelectorAll('.excl-list-wrap input[type=checkbox]:checked')].map(cb=>cb.value).join(',');
+      const freeExcl=(document.getElementById('plan-extra-excl')?.value||'').trim();
+      const userExcl=[checkedExcl,freeExcl].filter(Boolean).join(',');
+      const{week1,week2}=await generateMealPlan(genWeeks,userExcl,warnings);
+      const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
+      localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
+      localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
+      mealMatrix=[week1,week2];
+      localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
+      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,warnings,source:'spoonacular'}));
+    }
+    closePlannerSheet();
+    go('plan');
+    if(warnings.length)setTimeout(()=>alert('Plan generated — notes:\n\n'+warnings.join('\n')),350);
+  }catch(err){
+    if(err.code==='DAILY_LIMIT'){
+      // Spoonacular limit hit — fall back to built-in database silently
+      const week1=generateWeekFromDB(null),week2=generateWeekFromDB(week1);
+      const diff=prevRaw?computePlanDiff(JSON.parse(prevRaw),week1):null;
+      localStorage.setItem('gp_meals_w1',JSON.stringify(week1));
+      localStorage.setItem('gp_meals_w2',JSON.stringify(week2));
+      mealMatrix=[week1,week2];
+      localStorage.setItem('gp_meal_exclusions_last',JSON.stringify(extractPlanIngredients(week1)));
+      localStorage.setItem('gp_planner_meta',JSON.stringify({ts:Date.now(),diff,source:'db',limitHit:true}));
+      closePlannerSheet();
+      go('plan');
+      setTimeout(()=>alert(err.message+'\n\nFalling back to built-in database.'),350);
+    }else{
+      if(btn){btn.disabled=false;btn.textContent='✨ Generate new week';}
+      if(prog)prog.style.display='none';
+      alert('Generation failed: '+err.message);
+    }
+  }finally{planGenerating=false;}
 }
 
 // init
