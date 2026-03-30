@@ -58,6 +58,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px}
 .badge-push{background:#FFE5E5;color:#C0392B}.badge-pull{background:#E8F2FF;color:#0A84FF}
 .badge-legs{background:#E8F5EC;color:#34A853}.badge-rest{background:#F2F2F7;color:#6E6E73}
+.badge-upper-a{background:#FFE8E0;color:#C0532B}.badge-upper-b{background:#E0EEFF;color:#1A5FC0}
+.badge-lower-a{background:#E4F5E8;color:#2E8B4A}.badge-lower-b{background:#EDE0FF;color:#6B3FBF}
+.badge-circuit{background:#FFF3D6;color:#B07800}
 .bar-track{height:6px;background:var(--elevated);border-radius:3px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
 .pad{padding:0 20px 32px}
@@ -363,6 +366,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
 .badge{display:inline-block;font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px}
 .badge-push{background:#FDEEED;color:#B85050}.badge-pull{background:#EBF1F7;color:#4479A8}
 .badge-legs{background:#EBF3EE;color:#4A7C59}.badge-rest{background:#F0EDE8;color:#8A8580}
+.badge-upper-a{background:#FDEEE8;color:#A84530}.badge-upper-b{background:#E8EEF7;color:#3A6099}
+.badge-lower-a{background:#E8F2EC;color:#3A7050}.badge-lower-b{background:#EDE8F5;color:#5E3A99}
+.badge-circuit{background:#F5EED8;color:#8A6800}
 .bar-track{height:5px;background:var(--elevated);border-radius:3px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
 .pad{padding:0 16px 24px}
@@ -646,6 +652,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
 #planner-modal.show{display:flex}
 .planner-sheet{background:var(--bg);border-radius:24px 24px 0 0;padding:24px 20px 44px;width:100%;max-width:500px;margin:0 auto;animation:slideUp .3s ease;max-height:88vh;overflow-y:auto}
 .planner-sheet::-webkit-scrollbar{display:none}
+#wplan-modal{position:fixed;inset:0;background:rgba(15,15,15,0.5);display:none;align-items:flex-end;z-index:300}
+#wplan-modal.show{display:flex}
+.wplan-sheet{background:var(--bg);border-radius:24px 24px 0 0;padding:24px 20px 44px;width:100%;max-width:500px;margin:0 auto;animation:slideUp .3s ease;max-height:88vh;overflow-y:auto}
+.wplan-sheet::-webkit-scrollbar{display:none}
 .plan-day-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
 .plan-day-row:last-child{border-bottom:none}
 .plan-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
@@ -683,6 +693,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
   <nav class="bottom-nav">
     <button class="nav-btn active" id="nav-today" onclick="go('today')"><span class="nav-icon">⚡</span><span class="nav-label">Today</span></button>
     <button class="nav-btn" id="nav-train" onclick="go('train')"><span class="nav-icon">🏃</span><span class="nav-label">Train</span></button>
+    <button class="nav-btn" id="nav-wplan" onclick="go('wplan')"><span class="nav-icon">💪</span><span class="nav-label">Program</span></button>
     <button class="nav-btn" id="nav-eat" onclick="go('eat')"><span class="nav-icon">🥗</span><span class="nav-label">Eat</span></button>
     <button class="nav-btn" id="nav-plan" onclick="go('plan')"><span class="nav-icon">🍽️</span><span class="nav-label">Plan</span></button>
     <button class="nav-btn" id="nav-shop" onclick="go('shop')"><span class="nav-icon">🛒</span><span class="nav-label">Shop</span></button>
@@ -764,6 +775,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Plus J
     <div class="g-done-title">Workout complete!</div>
     <div class="g-done-sub">Every single set done. Hydrate, rest well, and come back stronger.</div>
     <button class="g-done-btn" onclick="closeGuided()">Back to training</button>
+  </div>
+</div>
+
+<!-- WORKOUT PLAN MODAL -->
+<div id="wplan-modal" onclick="if(event.target===this)closeWplanSheet()">
+  <div class="wplan-sheet">
+    <div id="wplan-sheet-content"></div>
   </div>
 </div>
 
@@ -1030,49 +1048,65 @@ function getExSVG(name){
 
 // ── WORKOUT DATA ──────────────────────────────────────────────────────────────
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const TYPE=['push','pull','rest','legs','push','pull','rest'];
-const workouts=[
-  {type:'push',exercises:[
-    {name:'Push-ups',sets:4,reps:'12–15',prog:'→ Diamond → archer push-ups'},
-    {name:'Pike push-ups',sets:3,reps:'10–12',prog:'→ Decline pike → wall handstand'},
-    {name:'Dips (chair or parallel bars)',sets:3,reps:'10–12',prog:'→ Add slow 3 s negative'},
-    {name:'Decline push-ups',sets:3,reps:'12',prog:'→ Raise feet higher or archer'},
-    {name:'Tricep push-ups',sets:3,reps:'10',prog:'→ 3 s pause at bottom'},
+// Upper/Lower/Full-Body split — each major muscle group trained 2×/week (Ramos-Campo et al. 2024:
+// total weekly volume per muscle group drives hypertrophy, not split type)
+// Mon=Upper A (push emphasis), Tue=Lower A (quad), Wed=Rest,
+// Thu=Upper B (pull emphasis), Fri=Lower B (posterior chain), Sat=Circuit, Sun=Rest
+const TYPE=['upper-a','lower-a','rest','upper-b','lower-b','circuit','rest'];
+function dayTypeShort(t){return{'upper-a':'U·A','upper-b':'U·B','lower-a':'L·A','lower-b':'L·B','circuit':'CIR','rest':'RES'}[t]||t.slice(0,3).toUpperCase();}
+// Default built-in plan — overridden by gp_workout_plan if present
+// Exercise fields: name, sets, reps, prog, primaryMuscles, mechanic, level, imageUrl (null = use SVG fallback)
+let workouts=[
+  // Mon — Upper A: Push emphasis + light pull accessory
+  {type:'upper-a',label:'Upper A',focus:'Chest · Shoulders · Triceps',exercises:[
+    {name:'Push-ups',sets:4,reps:'10–15',prog:'Progress to: Archer push-ups',primaryMuscles:['chest','shoulders','triceps'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Pike push-ups',sets:3,reps:'10–12',prog:'Progress to: Decline pike push-ups',primaryMuscles:['shoulders','triceps'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Dips (chair)',sets:3,reps:'10–12',prog:'Progress to: Parallel bar dips with 3 s negative',primaryMuscles:['triceps','chest'],mechanic:'compound',level:'intermediate',imageUrl:null},
+    {name:'Diamond push-ups',sets:3,reps:'10',prog:'Progress to: Close-grip archer push-ups',primaryMuscles:['triceps'],mechanic:'isolation',level:'intermediate',imageUrl:null},
+    {name:'Door-frame rows',sets:3,reps:'12',prog:'Progress to: Feet-elevated rows',primaryMuscles:['lats','middle back'],mechanic:'compound',level:'beginner',imageUrl:null},
   ]},
-  {type:'pull',exercises:[
-    {name:'Pull-ups / inverted rows',sets:4,reps:'6–10',prog:'→ Weighted or L-sit pull-ups'},
-    {name:'Door-frame rows',sets:3,reps:'12',prog:'→ Feet elevated, slow tempo'},
-    {name:'Resistance band curls',sets:3,reps:'15',prog:'→ Heavier band or slow negatives'},
-    {name:'Superman holds',sets:3,reps:'10 × 3 s',prog:'→ Longer hold or add weight'},
-    {name:'Towel bicep curls',sets:3,reps:'10',prog:'Loop towel under foot — increase tension'},
+  // Tue — Lower A: Quad emphasis (squats, lunges, single-leg)
+  {type:'lower-a',label:'Lower A',focus:'Quads · Glutes',exercises:[
+    {name:'Bulgarian split squats',sets:4,reps:'10 each leg',prog:'Progress to: Paused or weighted split squats',primaryMuscles:['quadriceps','glutes'],mechanic:'compound',level:'intermediate',imageUrl:null},
+    {name:'Jump squats',sets:3,reps:'15',prog:'Progress to: Depth jumps or pistol negatives',primaryMuscles:['quadriceps','glutes'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Reverse lunges',sets:3,reps:'12 each leg',prog:'Progress to: Walking lunges with pulse',primaryMuscles:['quadriceps','glutes'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Wall sit',sets:3,reps:'45s',prog:'Progress to: Single-leg wall sit',primaryMuscles:['quadriceps'],mechanic:'isolation',level:'beginner',imageUrl:null},
+    {name:'Dead bugs',sets:3,reps:'10 each side',prog:'Progress to: Extended-arm dead bugs',primaryMuscles:['abdominals'],mechanic:'isolation',level:'beginner',imageUrl:null},
   ]},
-  {type:'rest',exercises:[
+  // Wed — Rest
+  {type:'rest',label:'Rest',focus:'Active recovery',exercises:[
     {name:'20–30 min easy walk',sets:1,reps:'Light pace',prog:'Promotes circulation and recovery'},
     {name:'Full-body stretch',sets:1,reps:'10 min',prog:'Hip flexors, chest, lats — 30 s each'},
     {name:'8 hours of sleep',sets:1,reps:'Every night',prog:'Muscle is built during sleep'},
   ]},
-  {type:'legs',exercises:[
-    {name:'Bulgarian split squats',sets:4,reps:'10 each leg',prog:'→ Pause at bottom or add weight'},
-    {name:'Jump squats',sets:3,reps:'15',prog:'→ Depth jumps or pistol negatives'},
-    {name:'Hip thrusts (floor)',sets:4,reps:'15',prog:'→ Single-leg or weighted'},
-    {name:'Nordic curl negatives',sets:3,reps:'6',prog:'Anchor feet under sofa, lower 4–5 s'},
-    {name:'Single-leg calf raises',sets:4,reps:'20 each',prog:'→ Hold weight or pause at top'},
+  // Thu — Upper B: Pull emphasis + light push accessory
+  {type:'upper-b',label:'Upper B',focus:'Back · Biceps',exercises:[
+    {name:'Pull-ups / Inverted rows',sets:4,reps:'6–10',prog:'Progress to: Weighted or L-sit pull-ups',primaryMuscles:['lats','middle back'],mechanic:'compound',level:'intermediate',imageUrl:null},
+    {name:'Door-frame rows (feet elevated)',sets:3,reps:'12',prog:'Progress to: Single-arm rows',primaryMuscles:['middle back','lats'],mechanic:'compound',level:'intermediate',imageUrl:null},
+    {name:'Superman holds',sets:3,reps:'10 × 3 s',prog:'Progress to: Superman with alternating arm reach',primaryMuscles:['lower back'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Rear delt raises',sets:3,reps:'15',prog:'Progress to: Increase height or slow tempo',primaryMuscles:['shoulders'],mechanic:'isolation',level:'beginner',imageUrl:null},
+    {name:'Push-ups',sets:3,reps:'12',prog:'Progress to: Decline push-ups',primaryMuscles:['chest','triceps'],mechanic:'compound',level:'beginner',imageUrl:null},
   ]},
-  {type:'push',exercises:[
-    {name:'Push-ups',sets:4,reps:'12–15',prog:'→ Diamond → archer push-ups'},
-    {name:'Pike push-ups',sets:3,reps:'10–12',prog:'→ Decline pike → wall handstand'},
-    {name:'Dips (chair or parallel bars)',sets:3,reps:'10–12',prog:'→ Add slow 3 s negative'},
-    {name:'Decline push-ups',sets:3,reps:'12',prog:'→ Raise feet higher or archer'},
-    {name:'Tricep push-ups',sets:3,reps:'10',prog:'→ 3 s pause at bottom'},
+  // Fri — Lower B: Posterior chain (hinge patterns, glutes, hamstrings, calves)
+  {type:'lower-b',label:'Lower B',focus:'Hamstrings · Glutes · Calves',exercises:[
+    {name:'Nordic curl negatives',sets:3,reps:'6',prog:'Progress to: Full Nordic curls',primaryMuscles:['hamstrings'],mechanic:'compound',level:'expert',imageUrl:null},
+    {name:'Hip thrusts (floor)',sets:4,reps:'15',prog:'Progress to: Single-leg hip thrusts',primaryMuscles:['glutes','hamstrings'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Single-leg deadlift',sets:3,reps:'8 each leg',prog:'Progress to: Add weight or slow 3 s eccentric',primaryMuscles:['hamstrings','glutes'],mechanic:'compound',level:'intermediate',imageUrl:null},
+    {name:'Single-leg calf raises',sets:4,reps:'20 each',prog:'Progress to: Pause at top or hold weight',primaryMuscles:['calves'],mechanic:'isolation',level:'beginner',imageUrl:null},
+    {name:'Plank',sets:3,reps:'45s',prog:'Progress to: RKC plank or plank shoulder taps',primaryMuscles:['abdominals'],mechanic:'isolation',level:'beginner',imageUrl:null},
   ]},
-  {type:'pull',exercises:[
-    {name:'Pull-ups / inverted rows',sets:4,reps:'6–10',prog:'→ Weighted or L-sit pull-ups'},
-    {name:'Door-frame rows',sets:3,reps:'12',prog:'→ Feet elevated, slow tempo'},
-    {name:'Resistance band curls',sets:3,reps:'15',prog:'→ Heavier band or slow negatives'},
-    {name:'Superman holds',sets:3,reps:'10 × 3 s',prog:'→ Longer hold or add weight'},
-    {name:'Towel bicep curls',sets:3,reps:'10',prog:'Loop towel under foot — increase tension'},
+  // Sat — Full Body Circuit: 3 supersets, higher reps (15–25), 30 s rest between exercises
+  // Pairs: Push+Pull, Squat+Hinge, Core+Core — metabolic stress for hypertrophy
+  {type:'circuit',label:'Full Body Circuit',focus:'Compound · Metabolic stress',exercises:[
+    {name:'Push-ups',sets:3,reps:'15–20',prog:'Progress to: Decline push-ups',primaryMuscles:['chest','triceps'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Inverted rows',sets:3,reps:'15–20',prog:'Progress to: Feet-elevated rows',primaryMuscles:['middle back','lats'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Jump squats',sets:3,reps:'15–20',prog:'Progress to: Depth jumps',primaryMuscles:['quadriceps','glutes'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Hip thrusts (floor)',sets:3,reps:'15–20',prog:'Progress to: Single-leg hip thrusts',primaryMuscles:['glutes','hamstrings'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Plank',sets:3,reps:'45s',prog:'Progress to: Plank with alternating shoulder taps',primaryMuscles:['abdominals'],mechanic:'isolation',level:'beginner',imageUrl:null},
+    {name:'Mountain climbers',sets:3,reps:'20 each leg',prog:'Progress to: Cross-body mountain climbers',primaryMuscles:['abdominals','obliques'],mechanic:'compound',level:'beginner',imageUrl:null},
   ]},
-  {type:'rest',exercises:[
+  // Sun — Rest
+  {type:'rest',label:'Rest',focus:'Active recovery',exercises:[
     {name:'20–30 min easy walk',sets:1,reps:'Light pace',prog:'Promotes circulation and recovery'},
     {name:'Full-body stretch',sets:1,reps:'10 min',prog:'Hip flexors, chest, lats — 30 s each'},
     {name:'8 hours of sleep',sets:1,reps:'Every night',prog:'Muscle is built during sleep'},
@@ -1203,10 +1237,19 @@ let mealMatrixPromise=null;
 function getMealWeek(week){
   return mealMatrix[week]||embeddedMeals[week]||embeddedMeals[0];
 }
+function _planHasIngredients(week){
+  // Returns true if non-shake items have '+'-separated ingredient desc (new format)
+  const nonShakes=(week||[]).flatMap(d=>(d.items||[]).filter(it=>!it.shake));
+  return nonShakes.length>0&&nonShakes.some(it=>(it.desc||'').includes('+'));
+}
 function loadMealMatrix(){
-  // AI-generated plan takes priority
+  // Saved plan takes priority — but only if it has proper ingredient descriptions
   try{const lw1=localStorage.getItem('gp_meals_w1'),lw2=localStorage.getItem('gp_meals_w2');
-    if(lw1&&lw2){mealMatrix=[JSON.parse(lw1),JSON.parse(lw2)];return;}}catch(e){}
+    if(lw1&&lw2){const w1=JSON.parse(lw1),w2=JSON.parse(lw2);
+      if(_planHasIngredients(w1)){mealMatrix=[w1,w2];return;}
+      // Old format (no ingredient desc) — discard and fall through to embedded default
+      localStorage.removeItem('gp_meals_w1');localStorage.removeItem('gp_meals_w2');
+    }}catch(e){}
   if(typeof fetch!=='function')return;
   if(mealMatrixPromise)return mealMatrixPromise;
   const targets=['/meals.json','./meals.json'];
@@ -1260,23 +1303,27 @@ function saveGoals(g){localStorage.setItem('gp_goals',JSON.stringify(g))}
 function getDayTime(dayI){const g=getGoals();return g.times[dayI]??45;}
 const MIN_WORKOUT_MINS=30; // absolute minimum for any stimulus
 
-// Extra exercises that get added when more time is available
+// Extra exercises added when more time is available — keyed by day type
 const EXTRA_EXERCISES={
-  push:[
-    {name:'Wide push-ups',sets:3,reps:'12–15',prog:'→ Increase range of motion progressively'},
-    {name:'Pseudo planche push-ups',sets:3,reps:'8–10',prog:'→ Lean forward more over time'},
-    {name:'Hindu push-ups',sets:2,reps:'10',prog:'→ Smooth fluid motion, full range'},
+  'upper-a':[
+    {name:'Wide push-ups',sets:3,reps:'12–15',prog:'Progress to: Archer push-ups',primaryMuscles:['chest'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Pseudo planche push-ups',sets:3,reps:'8–10',prog:'Lean forward progressively',primaryMuscles:['chest','shoulders'],mechanic:'compound',level:'expert',imageUrl:null},
+    {name:'Hindu push-ups',sets:2,reps:'10',prog:'Smooth fluid motion, full range',primaryMuscles:['chest','shoulders'],mechanic:'compound',level:'intermediate',imageUrl:null},
   ],
-  pull:[
-    {name:'Rear delt raises (water bottles)',sets:3,reps:'15',prog:'→ Increase weight or slow tempo'},
-    {name:'Chin-up hold (doorframe)',sets:3,reps:'30s hold',prog:'→ Increase hold time'},
-    {name:'Band pull-aparts',sets:3,reps:'20',prog:'→ Use thicker band'},
+  'upper-b':[
+    {name:'Chin-up hold (doorframe)',sets:3,reps:'30s hold',prog:'Increase hold time each session',primaryMuscles:['biceps','lats'],mechanic:'compound',level:'intermediate',imageUrl:null},
+    {name:'Rear delt raises (water bottles)',sets:3,reps:'15',prog:'Increase speed or slow tempo',primaryMuscles:['shoulders'],mechanic:'isolation',level:'beginner',imageUrl:null},
+    {name:'Band pull-aparts',sets:3,reps:'20',prog:'Progress to: Use thicker band',primaryMuscles:['traps','rhomboids'],mechanic:'isolation',level:'beginner',imageUrl:null},
   ],
-  legs:[
-    {name:'Pistol squat negatives',sets:3,reps:'5 each',prog:'→ Progress to full pistol squats'},
-    {name:'Glute bridges',sets:3,reps:'20',prog:'→ Progress to single-leg or weighted'},
-    {name:'Wall sit',sets:3,reps:'45s',prog:'→ Extend hold time or add weight'},
+  'lower-a':[
+    {name:'Pistol squat negatives',sets:3,reps:'5 each',prog:'Progress to: Full pistol squats',primaryMuscles:['quadriceps'],mechanic:'compound',level:'expert',imageUrl:null},
+    {name:'Lateral lunges',sets:3,reps:'10 each',prog:'Progress to: Add depth or pause at bottom',primaryMuscles:['quadriceps','glutes'],mechanic:'compound',level:'beginner',imageUrl:null},
   ],
+  'lower-b':[
+    {name:'Glute bridges',sets:3,reps:'20',prog:'Progress to: Single-leg glute bridges',primaryMuscles:['glutes'],mechanic:'compound',level:'beginner',imageUrl:null},
+    {name:'Hamstring curls (towel)',sets:3,reps:'8',prog:'Progress to: Slow 3 s eccentric',primaryMuscles:['hamstrings'],mechanic:'compound',level:'intermediate',imageUrl:null},
+  ],
+  'circuit':[],
 };
 
 const SET_DURATION_S=45; // seconds of actual work per set
@@ -1290,8 +1337,11 @@ function getAdaptedWorkout(dayI){
   const tgt=getAdjustedTargets();
   const vm=tgt.volumeMult;
   const g=getGoals();
-  const rbs=g.restBetweenSets||60;
-  const rbe=g.restBetweenEx||90;
+
+  // Circuit day: fixed 30 s rest between all exercises (metabolic stress protocol)
+  const isCircuit=base.type==='circuit';
+  const rbs=isCircuit?30:(g.restBetweenSets||60);
+  const rbe=isCircuit?30:(g.restBetweenEx||90);
 
   // Estimate time for a given exercise list
   function estMinsFor(exList){
@@ -1300,9 +1350,9 @@ function getAdaptedWorkout(dayI){
     return(sets*(SET_DURATION_S+rbs)+(Math.max(0,exCount-1)*rbe))/60;
   }
 
-  // Start with base exercises, apply volume multiplier
+  // Start with base exercises, apply volume multiplier (circuit keeps fixed 3 sets for metabolic stress)
   let exercises=base.exercises;
-  if(Math.abs(vm-1)>0.05){
+  if(!isCircuit&&Math.abs(vm-1)>0.05){
     exercises=exercises.map(e=>({...e,sets:Math.max(1,Math.round(e.sets*vm))}));
   }
 
@@ -1312,19 +1362,17 @@ function getAdaptedWorkout(dayI){
     // Too little time: trim sets proportionally to fit
     const ratio=mins/baseEst;
     exercises=exercises.map(e=>({...e,sets:Math.max(1,Math.round(e.sets*ratio))}));
-  } else if(mins>baseEst+8&&EXTRA_EXERCISES[base.type]){
+  } else if(!isCircuit&&mins>baseEst+8&&EXTRA_EXERCISES[base.type]){
     // Lots of buffer: add bonus exercises or sets to fill time
     let ex=[...exercises];
-    // First try adding extra sets to existing exercises
     let est=estMinsFor(ex);
     let i=0;
     while(mins-est>5&&i<ex.length){
       ex[i]={...ex[i],sets:ex[i].sets+1};
       est=estMinsFor(ex);
       i=(i+1)%ex.length;
-      if(i===0)break; // one pass only
+      if(i===0)break;
     }
-    // Then add bonus exercises if still buffer
     est=estMinsFor(ex);
     const extras=EXTRA_EXERCISES[base.type]||[];
     for(const extra of extras){
@@ -1335,7 +1383,7 @@ function getAdaptedWorkout(dayI){
     exercises=ex;
   }
 
-  return{...base,exercises};
+  return{...base,exercises,_rbs:rbs,_rbe:rbe};
 }
 
 // ── TRAINING LOG HELPERS ─────────────────────────────────────────────────────
@@ -1407,7 +1455,8 @@ function getAdjustedTargets(){
 }
 const TAB_META={
   today:{title:null,sub:null},
-  train:{icon:'🏃',title:'Train',sub:'Home workout plan · PPL'},
+  train:{icon:'🏃',title:'Train',sub:'Upper · Lower · Full-Body split'},
+  wplan:{icon:'💪',title:'Program',sub:'Science-backed weekly training'},
   eat:{icon:'🥗',title:'Eat',sub:'Meal & nutrition plan'},
   plan:{icon:'🍽️',title:'Meal Planner',sub:'AI-generated nutrition plans'},
   shop:{icon:'🛒',title:'Shop',sub:'Shopping list from meal plan'},
@@ -1438,6 +1487,7 @@ function render(animate){
   const c=document.getElementById('content');
   if(tab==='today')c.innerHTML=rToday();
   if(tab==='train')c.innerHTML=rTrain();
+  if(tab==='wplan')c.innerHTML=rWorkoutPlan();
   if(tab==='eat')c.innerHTML=rEat();
   if(tab==='plan')c.innerHTML=rPlanner();
   if(tab==='shop')c.innerHTML=rShop();
@@ -1471,7 +1521,7 @@ function rToday(){
   else if(pp>=60){projColor='var(--warm)';projIcon='~';projMsg=`${shortfall}g below target. Muscle gain will be modest today.`;}
   else if(pp>=40){projColor='var(--warm)';projIcon='↓';projMsg=`${shortfall}g below target. Gains significantly limited — try to add more protein.`;}
   else{projColor='var(--danger)';projIcon='↓↓';projMsg=`Only ${lp}g logged — ${shortfall}g below target. Very limited muscle synthesis today.`;}
-  return`<div class="pad"><div class="today-hero"><div class="hero-eyebrow">${DAYS[ti]} — ${new Date().toLocaleDateString('it-IT',{day:'numeric',month:'long'})}</div><div class="hero-title">${cap(w.type)} Day</div><div class="hero-sub">${w.type==='rest'?'Recovery & active rest':'Home workout · no equipment needed'}</div></div>
+  return`<div class="pad"><div class="today-hero"><div class="hero-eyebrow">${DAYS[ti]} — ${new Date().toLocaleDateString('it-IT',{day:'numeric',month:'long'})}</div><div class="hero-title">${w.label||cap(w.type)} Day</div><div class="hero-sub">${w.type==='rest'?'Recovery & active rest':w.focus||'Home workout · no equipment needed'}</div></div>
   ${streakHtml}
   <div class="stats-grid"><div class="stat-card"><div class="stat-val">${wP}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="stat-lbl">Workout done</div><div style="margin-top:8px"><div class="bar-track"><div class="bar-fill" style="width:${wP}%;background:var(--accent)"></div></div></div></div><div class="stat-card"><div class="stat-val">${mP}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="stat-lbl">Meals checked</div><div style="margin-top:8px"><div class="bar-track"><div class="bar-fill" style="width:${mP}%;background:var(--blue)"></div></div></div></div></div>
   <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div style="font-size:12px;font-weight:600">Protein today</div><div style="font-size:13px;font-weight:600;color:var(--blue)">${lp}g <span style="color:var(--muted);font-size:11px">/ ${tgt.protein}g</span></div></div><div class="bar-track" style="height:6px"><div class="bar-fill" style="width:${pp}%;background:var(--blue)"></div></div><div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="font-size:13px;font-weight:700;color:${projColor};flex-shrink:0">${projIcon}</span><span style="font-size:12px;color:${projColor};line-height:1.4">${projMsg}</span></div></div>
@@ -1485,7 +1535,7 @@ function rTrain(){
   const s=ls();const now=todayIdx();const w=getAdaptedWorkout(trainDay);const base=workouts[trainDay];
   const mins=getDayTime(trainDay);
   const g=getGoals();const rbs=g.restBetweenSets||60;const rbe=g.restBetweenEx||90;
-  const strip=DAYS.map((d,i)=>{const key=dayKey(i);const wd=s.workout[key]||{};let tot=0,done=0;const aw=getAdaptedWorkout(i);if(aw.type!=='rest'){aw.exercises.forEach((e,ei)=>{tot+=e.sets;for(let si=0;si<e.sets;si++)if((wd[ei]||{})[si])done++;});}const pct=tot?Math.round(done/tot*100):0;const act=i===trainDay;return`<div class="dp ${act?'active':''} ${i===now&&!act?'today-mark':''}" onclick="std(${i})"><span class="dl">${d}</span><span class="dn">${new Date(new Date().setDate(new Date().getDate()-(now-i))).getDate()}</span><span class="dt">${pct?pct+'%':TYPE[i]==='rest'?'RES':TYPE[i].slice(0,3).toUpperCase()}</span></div>`;}).join('');
+  const strip=DAYS.map((d,i)=>{const key=dayKey(i);const wd=s.workout[key]||{};let tot=0,done=0;const aw=getAdaptedWorkout(i);if(aw.type!=='rest'){aw.exercises.forEach((e,ei)=>{tot+=e.sets;for(let si=0;si<e.sets;si++)if((wd[ei]||{})[si])done++;});}const pct=tot?Math.round(done/tot*100):0;const act=i===trainDay;return`<div class="dp ${act?'active':''} ${i===now&&!act?'today-mark':''}" onclick="std(${i})"><span class="dl">${d}</span><span class="dn">${new Date(new Date().setDate(new Date().getDate()-(now-i))).getDate()}</span><span class="dt">${pct?pct+'%':dayTypeShort(workouts[i].type)}</span></div>`;}).join('');
   const key=dayKey(trainDay);const wd=s.workout[key]||{};let tS=0,dS=0;
   if(w.type!=='rest'){w.exercises.forEach((e,ei)=>{tS+=e.sets;for(let si=0;si<e.sets;si++)if((wd[ei]||{})[si])dS++;});}
   const allD=tS>0&&dS===tS;const pctD=tS?Math.round(dS/tS*100):0;
@@ -1493,7 +1543,7 @@ function rTrain(){
   const timeTag=mins<=0?'Rest day — no workout':mins<35?`⚡ ${mins} min · compact session`:mins>55?`💪 ${mins} min · extended session (+${Math.max(0,extraCount)} extra exercises)`:` ${mins} min · full session`;
   const exCards=w.exercises.map((e,ei)=>{
     const ek=`${trainDay}-${ei}`;const isOpen=!!expanded[ek];const isExtra=ei>=base.exercises.length;
-    const imgSection=isOpen?`<div class="ex-image-wrap">${getExSVG(e.name)}</div><div class="ex-caption">${e.name} · ${e.sets} sets × ${e.reps}</div>`:'';
+    const imgSection=isOpen?`<div class="ex-image-wrap">${e.imageUrl?`<img src="${e.imageUrl}" alt="${e.name}" style="width:100%;border-radius:12px;display:block" onerror="this.outerHTML=getExSVG('${e.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">`:getExSVG(e.name)}</div><div class="ex-caption">${e.name} · ${e.sets} sets × ${e.reps}</div>`:'';
     // count bonus sets stored beyond plan sets
     const bonusSets=Object.keys(wd[ei]||{}).filter(k=>parseInt(k)>=e.sets&&(wd[ei]||{})[k]).length;
     const totalSetsShown=e.sets+bonusSets+(isOpen?1:0); // +1 for the pending bonus slot when open
@@ -1524,12 +1574,12 @@ function rTrain(){
   const estVsAvailable=Math.abs(diff)<=3?'✓ Fits your available time perfectly':diff>3?`⚠️ ${diff} min over — reduce rest in Settings or shorten available time`:`${Math.abs(diff)} min buffer — workout adapts sets to fill your time`;
   const estColor=Math.abs(diff)<=3?'var(--green)':diff>3?'var(--danger)':'var(--muted)';
 
-  const tTitle=w.type==='push'?'Chest · Shoulders · Triceps':w.type==='pull'?'Back · Biceps':w.type==='legs'?'Quads · Hamstrings · Glutes':'Active recovery';
+  const tTitle=w.focus||(w.type==='rest'?'Active recovery':w.label||cap(w.type));
 
   // time selector for this day
   const timeSelector=w.type!=='rest'?`<div class="card" style="margin-bottom:12px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span class="badge badge-${w.type}">${cap(w.type)}</span>
+      <span class="badge badge-${w.type}">${w.label||cap(w.type)}</span>
       <span style="font-size:13px;font-weight:700;flex:1">${tTitle}</span>
       <span style="font-size:12px;color:var(--green);font-weight:700">${mins} min</span>
     </div>
@@ -1615,7 +1665,7 @@ function showGEx(){
     }</div>`;
   }
 
-  document.getElementById('g-img').innerHTML=getExSVG(e.name);
+  document.getElementById('g-img').innerHTML=e.imageUrl?`<img src="${e.imageUrl}" alt="${e.name}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;display:block" onerror="this.parentElement.innerHTML=getExSVG('')">`:getExSVG(e.name);
   document.getElementById('g-ex-name').textContent=e.name;
   document.getElementById('g-ex-meta').textContent=`${e.sets} sets`;
   document.getElementById('g-set-lbl').textContent=`Set ${gSetIdx+1} of ${e.sets}`;
@@ -1666,12 +1716,13 @@ function guidedNext(){
 }
 function startGRest(betweenEx){
   clearInterval(gRestIval);
-  const g=getGoals();
-  gRestRem=betweenEx?(g.restBetweenEx||90):(g.restBetweenSets||60);
+  const aw=getAdaptedWorkout(gDayI);
+  // Circuit day uses fixed 30s rest (metabolic stress protocol); other days use user settings
+  gRestRem=betweenEx?(aw._rbe||90):(aw._rbs||60);
   document.getElementById('g-main').style.display='none';
   document.getElementById('g-rest').style.display='flex';
   document.getElementById('g-done').style.display='none';
-  const w=workouts[gDayI];const ne=w.exercises[gExIdx];
+  const ne=aw.exercises[gExIdx];
   document.getElementById('g-next-lbl').textContent=betweenEx?'Up next':'Next set';
   document.getElementById('g-next-name').textContent=betweenEx?ne.name:`Set ${gSetIdx+1} of ${ne.sets}`;
   updGRest();
@@ -1679,8 +1730,8 @@ function startGRest(betweenEx){
 }
 function updGRest(){
   document.getElementById('g-rest-num').textContent=gRestRem;
-  const g=getGoals();
-  const total=gRestRem>(g.restBetweenSets||60)?(g.restBetweenEx||90):(g.restBetweenSets||60);
+  const aw=getAdaptedWorkout(gDayI);
+  const total=gRestRem>(aw._rbs||60)?(aw._rbe||90):(aw._rbs||60);
   document.getElementById('g-rest-arc').setAttribute('stroke-dashoffset',396*(1-gRestRem/total));
 }
 function guidedSkipRest(){clearInterval(gRestIval);showGEx()}
@@ -2054,6 +2105,7 @@ function rShop(){
       <button class="shop-btn" onclick="clearShopChecks()">Reset checks</button>
       <button class="shop-btn" onclick="go('eat')">Open meal plan</button>
     </div>
+    ${data.totalItems<=5&&data.mealCount>10?`<div class="card" style="padding:16px;margin-bottom:12px;background:#fff8e1;border-left:4px solid #ffc107"><div style="font-weight:600;margin-bottom:4px">Shopping list needs a refresh</div><div style="font-size:13px;color:#555">Your meal plan was generated with an older format. Go to <strong>Planner</strong> and tap <strong>Generate new week</strong> to rebuild with full ingredient details.</div></div>`:''}
     ${data.categories.map(cat=>`<div class="card shop-category">
       <div class="shop-category-head">
         <div class="shop-category-title">${cat.name}</div>
@@ -2548,12 +2600,12 @@ function scheduleNotifs(){
   });
   if(TYPE[ti]!=='rest'){
     const t=new Date(now);t.setHours(7,0,0,0);const ms=t-now;
-    if(ms>0){setTimeout(()=>{try{new Notification('💪 Training day — Giovanni\'s Plan',{body:`Today is ${TYPE[ti]} day. Let\'s go!`,icon:'/favicon.ico'});}catch(e){}},ms);}
+    if(ms>0){setTimeout(()=>{try{new Notification('💪 Training day — Giovanni\'s Plan',{body:`Today: ${workouts[ti].label||TYPE[ti]}. Let\'s go!`,icon:'/favicon.ico'});}catch(e){}},ms);}
   }
 }
 
 function confirmClearData(){
-  ['gp_workout','gp_meals','gp_food','gp_weight','gp_prs','gp_prs_recent','gp_trainlog','gp_shop','gp_meals_w1','gp_meals_w2','gp_meal_exclusions_last','gp_planner_meta'].forEach(k=>localStorage.removeItem(k));
+  ['gp_workout','gp_meals','gp_food','gp_weight','gp_prs','gp_prs_recent','gp_trainlog','gp_shop','gp_meals_w1','gp_meals_w2','gp_meal_exclusions_last','gp_planner_meta','gp_workout_plan','gp_exercise_library'].forEach(k=>localStorage.removeItem(k));
   mealMatrix=embeddedMeals;
   render();
 }
@@ -2730,7 +2782,7 @@ function _spoonNutrient(recipe,name){
 function _spoonDesc(ingredients){
   if(!ingredients?.length)return'';
   const scored=ingredients.map(i=>({name:i.name,amt:i.measures?.metric?.amount||i.amount||0,unit:(i.measures?.metric?.unitShort||i.unit||'').toLowerCase()})).filter(i=>i.amt>0).sort((a,b)=>b.amt-a.amt).slice(0,5);
-  return scored.length?scored.map(i=>`${i.name} (${Math.round(i.amt)}${i.unit||'g'})`).join(' + '):ingredients.slice(0,4).map(i=>i.name).join(', ');
+  return scored.length?scored.map(i=>`${i.name} (${Math.round(i.amt)}${i.unit||'g'})`).join(' + '):ingredients.slice(0,4).map(i=>i.name).join(' + ');
 }
 function _spoonPick(pool,usedIds,targetP){
   const avail=pool.filter(r=>!usedIds.has(r.id));
@@ -2777,7 +2829,7 @@ function _buildWeekFromPools(pools,avoidIds){
     items.push(mkItem(pick(pools.b,'breakfasts',25,d),'7:30','Breakfast'));
     items.push({..._SHAKE_AM});
     items.push(mkItem(pick(pools.l,'lunches',35,d),'13:00','Lunch'));
-    if(isTr)items.push(mkItem(pick(pools.s,'snacks',20,d),'16:00','Pre-workout'));
+    items.push(mkItem(pick(pools.s,'snacks',20,d),'16:00',isTr?'Pre-workout':'Snack'));
     items.push(mkItem(pick(pools.d,'dinners',40,d),'19:30','Dinner'));
     items.push({..._SHAKE_PM});
     return{kcal:Math.round(items.reduce((a,it)=>a+(it.kcal||0),0)),protein:Math.round(items.reduce((a,it)=>a+(it.p||0),0)),items};
@@ -3251,9 +3303,232 @@ async function startPlanGeneration(mode){
   }finally{planGenerating=false;}
 }
 
+// ── WORKOUT PLANNER ───────────────────────────────────────────────────────────
+const EXERCISE_DB_URL='https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
+const EXERCISE_IMG_PREFIX='https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+// Muscle group mapping (free-exercise-db primaryMuscles values)
+const PUSH_M=['chest','shoulders','triceps'];
+const PULL_M=['lats','middle back','biceps','traps','rhomboids'];
+const QUAD_M=['quadriceps','glutes'];
+const HINGE_M=['hamstrings','glutes','lower back'];
+const CORE_M=['abdominals','obliques'];
+
+async function fetchExerciseLibrary(){
+  try{
+    const cached=localStorage.getItem('gp_exercise_library');
+    if(cached){const{ts,data}=JSON.parse(cached);if(Date.now()-ts<7*24*60*60*1000)return data;}
+    const resp=await fetch(EXERCISE_DB_URL);
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const all=await resp.json();
+    // Filter: bodyweight + strength only
+    const filtered=all.filter(e=>e.equipment==='body weight'&&e.category==='strength');
+    localStorage.setItem('gp_exercise_library',JSON.stringify({ts:Date.now(),data:filtered}));
+    return filtered;
+  }catch(e){return null;}
+}
+
+// Generate a 7-day Upper/Lower/Full-Body plan from the exercise library.
+// Science: total weekly volume per muscle group drives hypertrophy (Ramos-Campo et al. 2024),
+// so each major muscle group appears in 2 sessions. Compound movements first, isolation last.
+function generateWorkoutPlan(library,userLevel,avoidNames){
+  const avoidSet=new Set(avoidNames||[]);
+  const levels=['beginner','intermediate','expert'];
+  const lvlIdx=Math.max(0,levels.indexOf(userLevel));
+  const tgt=getAdjustedTargets();
+  const vm=tgt.volumeMult; // aggressive gain → more sets
+  const heavySets=Math.max(3,Math.round(4*vm));
+  const lightSets=Math.max(2,Math.round(3*vm));
+  const usedNames=new Set();
+
+  function imgUrl(ex){return(ex.images&&ex.images.length)?EXERCISE_IMG_PREFIX+ex.images[0]:null;}
+
+  // Pick exercises matching muscles + mechanic + level, never repeat within week
+  function pick(muscles,mechanic,count){
+    const candidates=library.filter(ex=>{
+      if(avoidSet.has(ex.name)||usedNames.has(ex.name))return false;
+      if(mechanic&&ex.mechanic!==mechanic)return false;
+      if(!ex.primaryMuscles.some(m=>muscles.includes(m)))return false;
+      const el=levels.indexOf(ex.level);
+      return el>=0&&el<=lvlIdx+1;
+    });
+    // Prefer exact level match, shuffle within tier
+    const sorted=[...candidates].sort((a,b)=>{
+      const ad=Math.abs(levels.indexOf(a.level)-lvlIdx);
+      const bd=Math.abs(levels.indexOf(b.level)-lvlIdx);
+      return ad-bd+(Math.random()-0.5)*0.4;
+    });
+    const picked=sorted.slice(0,count);
+    picked.forEach(e=>usedNames.add(e.name));
+    return picked;
+  }
+
+  // Find the next-difficulty exercise for same muscle → progression tip
+  function progTip(ex,muscles){
+    const curLvl=levels.indexOf(ex.level);
+    if(curLvl>=levels.length-1)return'Maintain with higher reps or slower tempo';
+    const next=library.find(e=>e.level===levels[curLvl+1]&&e.primaryMuscles.some(m=>muscles.includes(m))&&e.name!==ex.name);
+    return next?`Progress to: ${next.name}`:'Increase reps or slow the eccentric phase';
+  }
+
+  function toEx(ex,sets,reps,muscles){
+    return{name:ex.name,sets,reps,prog:progTip(ex,muscles),primaryMuscles:ex.primaryMuscles,mechanic:ex.mechanic,level:ex.level,instructions:ex.instructions||[],imageUrl:imgUrl(ex)};
+  }
+
+  const REST_DAY={type:'rest',label:'Rest',focus:'Active recovery',exercises:[
+    {name:'20–30 min easy walk',sets:1,reps:'Light pace',prog:'Promotes circulation and recovery'},
+    {name:'Full-body stretch',sets:1,reps:'10 min',prog:'Hip flexors, chest, lats — 30 s each'},
+    {name:'8 hours of sleep',sets:1,reps:'Every night',prog:'Muscle is built during sleep'},
+  ]};
+
+  // Upper A: Push emphasis (chest/shoulders/triceps) + light pull accessory
+  const uaC=pick(PUSH_M,'compound',3),uaI=pick(PUSH_M,'isolation',1),uaP=pick(PULL_M,'compound',1);
+  const upperA={type:'upper-a',label:'Upper A',focus:'Chest · Shoulders · Triceps',exercises:[
+    ...uaC.map(e=>toEx(e,heavySets,'8–12',PUSH_M)),
+    ...uaI.map(e=>toEx(e,lightSets,'12–15',PUSH_M)),
+    ...uaP.map(e=>toEx(e,lightSets,'12',PULL_M)),
+  ]};
+
+  // Lower A: Quad/squat emphasis + core
+  const laC=pick(QUAD_M,'compound',3),laI=pick(QUAD_M,'isolation',1),laCore=pick(CORE_M,null,1);
+  const lowerA={type:'lower-a',label:'Lower A',focus:'Quads · Glutes',exercises:[
+    ...laC.map(e=>toEx(e,heavySets,'8–12',QUAD_M)),
+    ...laI.map(e=>toEx(e,lightSets,'12–20',QUAD_M)),
+    ...laCore.map(e=>toEx(e,lightSets,'12–15',CORE_M)),
+  ]};
+
+  // Upper B: Pull emphasis (back/biceps) + light push accessory
+  const ubC=pick(PULL_M,'compound',3),ubI=pick(PULL_M,'isolation',1),ubP=pick(PUSH_M,'compound',1);
+  const upperB={type:'upper-b',label:'Upper B',focus:'Back · Biceps',exercises:[
+    ...ubC.map(e=>toEx(e,heavySets,'6–10',PULL_M)),
+    ...ubI.map(e=>toEx(e,lightSets,'12–15',PULL_M)),
+    ...ubP.map(e=>toEx(e,lightSets,'12',PUSH_M)),
+  ]};
+
+  // Lower B: Posterior chain (hinge/hamstrings/glutes) + core
+  const lbC=pick(HINGE_M,'compound',3),lbI=pick(HINGE_M,'isolation',1),lbCore=pick(CORE_M,null,1);
+  const lowerB={type:'lower-b',label:'Lower B',focus:'Hamstrings · Glutes · Calves',exercises:[
+    ...lbC.map(e=>toEx(e,heavySets,'8–12',HINGE_M)),
+    ...lbI.map(e=>toEx(e,lightSets,'12–20',HINGE_M)),
+    ...lbCore.map(e=>toEx(e,lightSets,'15–20',CORE_M)),
+  ]};
+
+  // Circuit: 3 supersets of paired compounds (push+pull, squat+hinge, core+core)
+  // Fixed 3 sets × 15–20 reps, 30 s rest — metabolic stress for hypertrophy
+  const cp=pick(PUSH_M,'compound',1),cr=pick(PULL_M,'compound',1);
+  const cs=pick(QUAD_M,'compound',1),ch=pick(HINGE_M,'compound',1);
+  const cc1=pick(CORE_M,null,1),cc2=pick(CORE_M,null,1);
+  const circuit={type:'circuit',label:'Full Body Circuit',focus:'Compound · Metabolic stress',exercises:[
+    ...cp.map(e=>toEx(e,3,'15–20',PUSH_M)),
+    ...cr.map(e=>toEx(e,3,'15–20',PULL_M)),
+    ...cs.map(e=>toEx(e,3,'15–20',QUAD_M)),
+    ...ch.map(e=>toEx(e,3,'15–20',HINGE_M)),
+    ...cc1.map(e=>toEx(e,3,'15–20',CORE_M)),
+    ...cc2.map(e=>toEx(e,3,'15–20',CORE_M)),
+  ]};
+
+  return[upperA,lowerA,REST_DAY,upperB,lowerB,circuit,REST_DAY];
+}
+
+// Load saved workout plan from localStorage (called on init)
+function loadWorkoutPlan(){
+  try{
+    const saved=localStorage.getItem('gp_workout_plan');
+    if(!saved)return;
+    const plan=JSON.parse(saved);
+    if(Array.isArray(plan)&&plan.length===7)workouts.splice(0,7,...plan);
+  }catch(e){}
+}
+
+let wplanGenerating=false;
+function openWplanSheet(){
+  const g=getGoals();const level=g.level||'intermediate';
+  const names=workouts.flatMap(d=>d.exercises.filter(e=>e.primaryMuscles?.length).map(e=>e.name));
+  const unique=[...new Set(names)];
+  const avoidList=unique.map(n=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><input type="checkbox" value="${n.replace(/"/g,'&quot;')}" style="accent-color:var(--accent)"> ${n}</label>`).join('');
+  document.getElementById('wplan-sheet-content').innerHTML=`
+    <div class="sheet-handle" style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px"></div>
+    <div style="font-family:'Sora',sans-serif;font-size:20px;font-weight:800;margin-bottom:16px">Generate workout plan</div>
+    <div class="sec-head">Experience level</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">${['beginner','intermediate','expert'].map(l=>`<button class="wplan-level-pill goal-pill ${l===level?'sel':''}" data-level="${l}" onclick="selectWplanLevel(this)" style="flex:1;text-align:center;font-size:12px">${l.charAt(0).toUpperCase()+l.slice(1)}</button>`).join('')}</div>
+    <div class="sec-head">Skip these exercises</div>
+    <div id="wplan-avoid-list" style="max-height:160px;overflow-y:auto;margin-bottom:10px">${avoidList}</div>
+    <div class="sec-head">Other exclusions</div>
+    <input id="wplan-extra-excl" type="text" placeholder="e.g. pull-ups, dips" style="width:100%;box-sizing:border-box;background:var(--elevated);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;padding:10px 12px;outline:none;margin-bottom:16px">
+    <button id="wplan-gen-btn" onclick="startWplanGeneration()" style="width:100%;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:700;cursor:pointer;font-family:'Sora',sans-serif;margin-bottom:10px">Generate plan</button>
+    <button onclick="closeWplanSheet()" style="width:100%;padding:12px;background:var(--elevated);color:var(--text);border:none;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">Cancel</button>`;
+  document.getElementById('wplan-modal').classList.add('show');
+}
+function closeWplanSheet(){document.getElementById('wplan-modal').classList.remove('show');}
+function selectWplanLevel(el){
+  document.querySelectorAll('.wplan-level-pill').forEach(p=>p.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+async function startWplanGeneration(){
+  if(wplanGenerating)return;
+  wplanGenerating=true;
+  const btn=document.getElementById('wplan-gen-btn');
+  if(btn){btn.disabled=true;btn.textContent='Fetching exercises…';}
+  try{
+    const g=getGoals();
+    const selPill=document.querySelector('.wplan-level-pill.sel');
+    const level=selPill?.dataset?.level||g.level||'intermediate';
+    g.level=level;saveGoals(g);
+    const avoidChecked=[...document.querySelectorAll('#wplan-avoid-list input:checked')].map(cb=>cb.value);
+    const avoidFree=(document.getElementById('wplan-extra-excl')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const avoid=[...avoidChecked,...avoidFree];
+    const prevNames=new Set(workouts.flatMap(d=>d.exercises.map(e=>e.name)));
+    const library=await fetchExerciseLibrary();
+    if(!library||library.length<10){
+      alert('Could not fetch the exercise library. Check your connection and try again.');
+      if(btn){btn.disabled=false;btn.textContent='Generate plan';}
+      wplanGenerating=false;return;
+    }
+    if(btn)btn.textContent='Building plan…';
+    const newPlan=generateWorkoutPlan(library,level,avoid);
+    const newNames=newPlan.flatMap(d=>d.exercises.map(e=>e.name));
+    const added=newNames.filter(n=>!prevNames.has(n)).length;
+    const kept=newNames.filter(n=>prevNames.has(n)).length;
+    workouts.splice(0,7,...newPlan);
+    localStorage.setItem('gp_workout_plan',JSON.stringify(newPlan));
+    closeWplanSheet();
+    go('wplan');
+    setTimeout(()=>alert(`Plan ready — ${added} new exercises, ${kept} carried over.\n\nHead to Train to start your first session.`),300);
+  }catch(err){
+    alert('Generation failed: '+err.message);
+    if(btn){btn.disabled=false;btn.textContent='Generate plan';}
+  }finally{wplanGenerating=false;}
+}
+
+function rWorkoutPlan(){
+  const g=getGoals();const level=g.level||'intermediate';
+  const hasSaved=!!localStorage.getItem('gp_workout_plan');
+  const typeColor={'upper-a':'#C0532B','upper-b':'#1A5FC0','lower-a':'#2E8B4A','lower-b':'#6B3FBF','circuit':'#B07800'};
+  const dayCards=workouts.map((day,i)=>{
+    if(day.type==='rest')return`<div class="card" style="display:flex;align-items:center;gap:12px;opacity:0.55"><div style="font-size:22px">😴</div><div><div style="font-weight:700;font-size:13px">${DAYS[i]} — Rest</div><div style="font-size:11px;color:var(--muted)">Active recovery · stretch & walk</div></div></div>`;
+    const col=typeColor[day.type]||'var(--accent)';
+    const exRows=day.exercises.slice(0,4).map(e=>`<div style="display:flex;align-items:center;gap:7px;padding:3px 0"><span style="width:6px;height:6px;border-radius:50%;background:${col};flex-shrink:0"></span><span style="font-size:12px;color:var(--text)">${e.name}</span>${e.imageUrl?'<span style="font-size:9px;color:var(--muted);margin-left:auto">📸</span>':''}</div>`).join('');
+    const more=day.exercises.length>4?`<div style="font-size:11px;color:var(--muted);padding-top:3px">+${day.exercises.length-4} more exercises</div>`:'';
+    return`<div class="card" onclick="go('train');std(${i})" style="cursor:pointer"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;font-weight:700;color:var(--muted);min-width:28px">${DAYS[i]}</span><span class="badge badge-${day.type}">${day.label}</span><span style="font-size:11px;color:var(--muted);margin-left:6px">${day.focus}</span></div>${exRows}${more}</div>`;
+  }).join('');
+  return`<div class="pad">
+    <div class="card" style="background:linear-gradient(135deg,#EBF3FF,#E0EEFF);border:none;margin-bottom:4px">
+      <div style="font-size:11px;font-weight:700;color:#0A84FF;margin-bottom:4px">📖 Evidence-based structure</div>
+      <div style="font-size:12px;color:#333;line-height:1.6">Each muscle group trains <strong>2×/week</strong> — research shows total weekly volume, not split type, drives hypertrophy (Ramos-Campo et al. 2024). Circuit Saturday uses 30 s rest for metabolic stress.</div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px">
+      <div class="sec-head" style="padding:0;margin:0">Weekly Program</div>
+      <button onclick="openWplanSheet()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:50px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">✨ Generate new plan</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${hasSaved?'From exercise library · tap any day card to train':'Built-in plan · generate to fetch real exercises with photos'}</div>
+    ${dayCards}
+  </div>`;
+}
+
 // init
 (function(){
   updateHeader('today');
+  loadWorkoutPlan();
   render();
   loadMealMatrix();
   if(typeof Notification!=='undefined'&&Notification.permission==='granted')scheduleNotifs();
